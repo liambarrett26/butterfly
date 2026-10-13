@@ -94,3 +94,4 @@ GATES = {
 DIVERSITY = 0.3          # MMR weight on novelty (0 = pure score, 1 = pure variety)
 WINDOW_STRIDE = 0.5      # s between candidate window starts
 CANDIDATES_PER_CLIP = 8
+PICKS_PER_CLIP_SLACK = 1  # cuts a clip may take beyond its even share, ceil(cuts / clips)
