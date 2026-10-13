@@ -218,3 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------- Butterfly
+# Outputs written into the footage folder, and test artefacts
+.reel_cache/
+tests/.synthetic/
+highlights*.mp4
+highlights*_report/
+# Footage must never be committed
+*.MP4
+*.mp4
+*.LRV
+*.lrv
+
+# Claude Code working brief: kept local, not tracked
+CLAUDE.md
