@@ -98,7 +98,7 @@ dull instead of being stretched to look exciting.
 
 - macOS on Apple Silicon (developed on an M3 Pro). Other platforms should work
   on CPU but are untested.
-- Python 3.11+
+- Python 3.12+
 - ffmpeg (`brew install ffmpeg`)
 - A GoPro **HERO5 or later**, since earlier models don't record telemetry.
   Developed against a **HERO13 Black**.
@@ -110,12 +110,18 @@ git clone https://github.com/<your-username>/butterfly.git
 cd butterfly
 conda create -n butterfly python=3.12
 conda activate butterfly
-python -m pip install telemetrik numpy scipy librosa matplotlib torch open_clip_torch
+python -m pip install -e ".[all]"
 ```
+
+This installs the `butterfly` command. The extras are optional:
+`.[vision]` adds the CLIP model (torch, open_clip), `.[music]` adds beat
+syncing (librosa), and `.[all]` adds both. Without `vision`, Butterfly runs
+with classic computer vision only. Dependencies are pinned to exact versions.
 
 A dedicated environment keeps Butterfly's dependencies apart from everything
 else. Use `python -m pip`, not bare `pip`, so the packages land in the same
-Python you run Butterfly with.
+Python you run Butterfly with. The editable install (`-e`) means edits to
+`src/butterfly/config.py` take effect without reinstalling.
 
 The first run downloads the CLIP weights (ViT-B/32, about 600 MB) from Hugging
 Face. After that, Butterfly works fully offline.
@@ -124,15 +130,18 @@ Face. After that, Butterfly works fully offline.
 
 ```bash
 # 1. Analyse and plan without rendering; writes an HTML report
-python reel.py ~/Movies/GoPro --dry-run
+butterfly ~/Movies/GoPro --dry-run
 open ~/Movies/GoPro/highlights_report/index.html
 
 # 2. Render a 30-second reel
-python reel.py ~/Movies/GoPro
+butterfly ~/Movies/GoPro
 
 # 3. Or cut it to the beat of a song
-python reel.py ~/Movies/GoPro --music ~/Music/track.mp3
+butterfly ~/Movies/GoPro --music ~/Music/track.mp3
 ```
+
+`python -m butterfly …` and `python reel.py …` (from the repository root)
+work the same way.
 
 The reel is written to `<folder>/highlights.mp4`. Analysis is cached in
 `<folder>/.reel_cache/`, so re-running with different settings takes seconds.
@@ -160,7 +169,7 @@ faster than decoding 4K HEVC.
 
 ## Tuning
 
-Everything tunable lives in **`config.py`**:
+Everything tunable lives in **`src/butterfly/config.py`**:
 
 - **Prompts** (`POSITIVE_PROMPTS`, `NEGATIVE_PROMPTS`) matter most. Describe
   what good footage from *your* trips looks like, e.g. "snorkelling with
@@ -178,19 +187,21 @@ seeing what to change.
 
 ```
 butterfly/
-├── reel.py              CLI entry point
-├── config.py            all weights, thresholds and prompts
-├── gpmf.py              GPMF telemetry, GPS9 decoding, HiLight tags
-├── signals.py           telemetry + audio features on the 0.1 s grid
-├── vision.py            frame sampling, classic CV, CLIP scoring
-├── analyse.py           per-clip orchestration and cache
-├── score.py             normalisation, quality gates, interest
-├── select_moments.py    candidate windows, MMR selection, beat plan
-├── render.py            ffmpeg cutting, concat, music mix
-├── report.py            HTML report and timelines
+├── src/butterfly/
+│   ├── cli.py               `butterfly` command: arguments and orchestration
+│   ├── config.py            all weights, thresholds and prompts
+│   ├── gpmf.py              GPMF telemetry, GPS9 decoding, HiLight tags
+│   ├── signals.py           telemetry + audio features on the 0.1 s grid
+│   ├── vision.py            frame sampling, classic CV, CLIP scoring
+│   ├── analyse.py           per-clip orchestration and cache
+│   ├── score.py             normalisation, quality gates, interest
+│   ├── select_moments.py    candidate windows, MMR selection, beat plan
+│   ├── render.py            ffmpeg cutting, concat, music mix
+│   └── report.py            HTML report and timelines
 ├── tests/
-│   └── run_synthetic.py synthetic regression suite
-├── CLAUDE.md            working brief for Claude Code
+│   └── run_synthetic.py     synthetic regression suite
+├── reel.py                  compatibility shim for `python reel.py …`
+├── pyproject.toml
 └── README.md
 ```
 
@@ -210,7 +221,7 @@ branch and one pull request.
    shake, smooth riding, blur, darkness) and checks the gates and picks. It
    needs no network or model. When you add a signal or gate, add a synthetic
    region and a check for it.
-4. **Bump `CACHE_VERSION`** in `config.py` if you change what the analysis
+4. **Bump `CACHE_VERSION`** in `src/butterfly/config.py` if you change what the analysis
    computes. Otherwise stale cached features are silently reused.
 5. **Update the docs:** tick the roadmap item below, add an entry to the
    [Changelog](#changelog), and update `CLAUDE.md` if any conventions or camera
@@ -278,7 +289,7 @@ files with a separate probe script.
 - [x] Synthetic regression suite
 
 ### v0.2.x — repository setup
-- [ ] `pyproject.toml` with a `butterfly` console command and pinned dependencies
+- [x] `pyproject.toml` with a `butterfly` console command and pinned dependencies
 - [ ] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
 - [x] Licence (MIT)
 - [ ] Issue and PR templates
@@ -332,6 +343,11 @@ files with a separate probe script.
   Butterfly's outputs and footage. Install steps use a dedicated conda
   environment, and Pillow is no longer listed (nothing imports it).
 - Licence confirmed as MIT.
+- Packaged as `butterfly` (`src/butterfly/`, `pyproject.toml`): install with
+  `python -m pip install -e ".[all]"` and run `butterfly <folder>`.
+  Dependencies are pinned exactly, which raises the minimum to Python 3.12.
+  matplotlib is now a core dependency; `vision` and `music` are extras.
+  `python reel.py` still works.
 
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned
