@@ -13,6 +13,9 @@ Exit code 0 = all checks passed.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))  # works with or without `pip install -e .`
 
 from butterfly import analyse  # noqa: E402
+from butterfly import cli  # noqa: E402
 from butterfly.score import compute  # noqa: E402
 from butterfly.select_moments import plan_durations, select  # noqa: E402
 
@@ -83,6 +87,28 @@ def region_q(c, a, b) -> float:
     return float(c.q[int(a / 0.1):int(b / 0.1)].mean())
 
 
+def cli_outputs() -> dict:
+    """Dry-run the CLI on the synthetic folder; outputs must land in .butterfly/."""
+    legacy = DATA / ".reel_cache" / "old.npz"     # an old cache must be left alone
+    for d in (DATA / ".butterfly", legacy.parent, DATA / "highlights_report"):
+        shutil.rmtree(d, ignore_errors=True)       # test artefacts from earlier runs
+    legacy.parent.mkdir()
+    legacy.write_bytes(b"")
+    argv = sys.argv
+    sys.argv = ["butterfly", str(DATA), "--dry-run", "--no-vision", "--length", "12"]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.main()
+    finally:
+        sys.argv = argv
+    return {
+        "cache written to .butterfly/cache/": any((DATA / ".butterfly" / "cache").glob("*.npz")),
+        "report written to .butterfly/report/": (DATA / ".butterfly" / "report" / "index.html").exists(),
+        "nothing written to the old output paths": (legacy.exists() and len(list(legacy.parent.iterdir())) == 1
+                                                    and not (DATA / "highlights_report").exists()),
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -106,6 +132,7 @@ def main() -> int:
         "no pick in the handling section": all(   # 0.2 s tolerance at the region edge
             not (p.clip is c2 and p.start < 7.8 and p.start + p.dur > 2.2) for p in picks),
         "riding moment picked": any(p.clip is c1 and 5 <= p.start + p.dur / 2 <= 15 for p in picks),
+        **cli_outputs(),
     }
     for name, ok in checks.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")

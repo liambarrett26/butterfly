@@ -133,7 +133,7 @@ Face. After that, Butterfly works fully offline.
 ```bash
 # 1. Analyse and plan without rendering; writes an HTML report
 butterfly ~/Movies/GoPro --dry-run
-open ~/Movies/GoPro/highlights_report/index.html
+open ~/Movies/GoPro/.butterfly/report/index.html
 
 # 2. Render a 30-second reel
 butterfly ~/Movies/GoPro
@@ -145,8 +145,12 @@ butterfly ~/Movies/GoPro --music ~/Music/track.mp3
 `python -m butterfly …` and `python reel.py …` (from the repository root)
 work the same way.
 
-The reel is written to `<folder>/highlights.mp4`. Analysis is cached in
-`<folder>/.reel_cache/`, so re-running with different settings takes seconds.
+The reel is written to `<folder>/highlights.mp4`. Everything else Butterfly
+writes goes in `<folder>/.butterfly/`: the analysis cache (`cache/`), so
+re-running with different settings takes seconds, and the HTML report
+(`report/`). Delete that folder to start fresh; your footage is never touched.
+Versions before 0.2.3 used `.reel_cache/` and `highlights_report/`. Butterfly
+ignores those now, and you can delete them.
 
 **Tip:** copy the low-res proxy files (`GL01xxxx.LRV`) from the SD card
 alongside the MP4s. Butterfly uses them for the vision pass, which is much
@@ -249,8 +253,8 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (11 / 11 checks
-passing):
+Tested end-to-end on synthetic clips with injected telemetry (14 / 14 checks
+passing, also in CI):
 
 | Situation | Expected | Result |
 |---|---|---|
@@ -261,6 +265,7 @@ passing):
 | Blurred section | penalised | q ≈ 0.5 |
 | Dark section | penalised | q < 0.7 |
 | Render + report | full-length reel, thumbnails, timelines | ✓ |
+| CLI dry run | cache and report in `.butterfly/`, old `.reel_cache/` untouched | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
@@ -295,7 +300,7 @@ files with a separate probe script.
 - [x] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
 - [x] Licence (MIT)
 - [ ] Issue and PR templates
-- [ ] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
+- [x] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
 
 ### v0.3 — real-footage validation
 - [ ] Dry-run with real CLIP weights on a real trip; tune `GATES` and prompts
@@ -352,6 +357,9 @@ files with a separate probe script.
   `python reel.py` still works.
 - CI: GitHub Actions runs the synthetic test suite on Ubuntu (Python 3.12,
   core dependencies, no torch) on every push and pull request.
+- The analysis cache and HTML report now live in `<folder>/.butterfly/cache/`
+  and `<folder>/.butterfly/report/`. The reel stays at
+  `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
 
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned

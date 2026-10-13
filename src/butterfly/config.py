@@ -2,6 +2,7 @@
 
 DT = 0.1                 # analysis timeline resolution (s)
 CACHE_VERSION = 2        # bump to invalidate cached analyses
+OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 
 # ---------------------------------------------------------------- vision
 VISION_FPS = 2.0         # frames per second sampled for vision

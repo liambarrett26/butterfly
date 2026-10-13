@@ -56,6 +56,7 @@ def main() -> None:
     if not files:
         sys.exit(f"No MP4 files in {folder}")
     out = (args.out or folder / "highlights.mp4").expanduser()
+    work = folder / C.OUTPUT_DIR  # cache/ and report/; an old .reel_cache/ is left alone
 
     # ---------------------------------------------------------------- vision model
     scorer, tag = None, "cv"
@@ -74,7 +75,7 @@ def main() -> None:
     clips = []
     for i, f in enumerate(files, 1):
         t0 = time.time()
-        c = analyse_clip(f, scorer, folder / ".reel_cache", tag, args.refresh, vision=not args.no_vision)
+        c = analyse_clip(f, scorer, work / "cache", tag, args.refresh, vision=not args.no_vision)
         if c.duration < 1.0:
             continue
         clips.append(c)
@@ -107,7 +108,7 @@ def main() -> None:
     if not args.no_report:
         settings = (f"{'no vision' if args.no_vision else ('CLIP ' + args.clip_model if scorer else 'classic CV')}"
                     f", diversity {args.diversity}, {args.seg}s cuts" + (f", music {args.music.name}" if args.music else ""))
-        index = write_report(clips, picks, folder, out.with_name(out.stem + "_report"), settings)
+        index = write_report(clips, picks, folder, work / "report", settings)
         print(f"\nReport: {index}")
 
     if args.dry_run or not picks:
