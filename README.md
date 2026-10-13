@@ -216,8 +216,9 @@ butterfly/
 Butterfly is built in small, tested iterations. Each roadmap item becomes one
 branch and one pull request.
 
-1. **Pick a roadmap item** and open an issue for it with a clear definition of
-   done.
+1. **Pick a roadmap item** and open an issue for it with the *Roadmap item*
+   template, which asks for a clear definition of done. Report problems with
+   the *Bug report* template.
 2. **Branch:** `feat/<short-name>`, `fix/<short-name>` or `tune/<short-name>`.
 3. **Run the test suite** before every commit:
    ```bash
@@ -233,7 +234,8 @@ branch and one pull request.
    [Changelog](#changelog), and update `CLAUDE.md` if any conventions or camera
    facts changed.
 6. **Open a PR** describing the change, its before/after effect on a real
-   folder where relevant, and the test result.
+   folder where relevant, and the test result. The PR template has the
+   checklist.
 
 ### Working with Claude Code
 
@@ -299,7 +301,7 @@ files with a separate probe script.
 - [x] `pyproject.toml` with a `butterfly` console command and pinned dependencies
 - [x] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
 - [x] Licence (MIT)
-- [ ] Issue and PR templates
+- [x] Issue and PR templates
 - [x] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
 
 ### v0.3 — real-footage validation
@@ -360,6 +362,7 @@ files with a separate probe script.
 - The analysis cache and HTML report now live in `<folder>/.butterfly/cache/`
   and `<folder>/.butterfly/report/`. The reel stays at
   `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
+- Issue templates (bug report, roadmap item) and a pull request template.
 
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned
