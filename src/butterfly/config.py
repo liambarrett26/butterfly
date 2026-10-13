@@ -1,7 +1,7 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 2        # bump to invalidate cached analyses
+CACHE_VERSION = 3        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 
 # ---------------------------------------------------------------- vision
@@ -26,6 +26,9 @@ POSITIVE_PROMPTS = [
     "a breathtaking mountain landscape",
     "a sunset over the ocean",
     "friends laughing and having fun together",
+    "a close-up selfie of smiling people wearing sunglasses",
+    "a smiling selfie of friends on holiday",
+    "people floating together in clear turquoise water",
     "a group of people celebrating",
     "an exciting action sports moment",
     "wildlife in nature",
@@ -43,10 +46,11 @@ NEGATIVE_PROMPTS = [
     "a finger or hand covering the camera lens",
     "water droplets on the camera lens",
     "a plain overexposed white image",
+    "a murky underwater view with nothing in it",
 ]
 
 AESTHETIC_POS = "a beautiful, well composed award-winning travel photograph"
-AESTHETIC_NEG = "a boring, badly framed, amateur snapshot"
+AESTHETIC_NEG = "a boring, badly framed photo of nothing in particular"
 
 # ---------------------------------------------------------------- interest weights
 INTEREST_WEIGHTS = {
