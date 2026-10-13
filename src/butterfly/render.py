@@ -29,7 +29,7 @@ def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_s
     vf = (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
           f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30000/1001,format=yuv420p")
 
-    with tempfile.TemporaryDirectory(prefix="gopro_reel_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="butterfly_") as tmp:
         tmp = Path(tmp)
 
         def cut(item):

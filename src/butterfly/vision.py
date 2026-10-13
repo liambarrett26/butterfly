@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from scipy.ndimage import laplace
 
-import config as C
+from . import config as C
 
 
 # ------------------------------------------------------------------ frames

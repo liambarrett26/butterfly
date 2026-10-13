@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-import config as C
-from analyse import Clip
+from . import config as C
+from .analyse import Clip
 
 G = C.GATES
 

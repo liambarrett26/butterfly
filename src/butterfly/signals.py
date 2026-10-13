@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 
-from config import DT, GATES
+from .config import DT, GATES
 
 
 def bin_mean(t: np.ndarray, v: np.ndarray, n: int) -> np.ndarray:
