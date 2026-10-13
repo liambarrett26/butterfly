@@ -89,7 +89,7 @@ with the camera hitting the sand doesn't make the reel.
 | CLIP aesthetic | "beautiful photo" vs "boring snapshot" | interest |
 | Smooth action | GPS speed + low-passed turning, with shake removed | interest |
 | Audio peaks | loudness above a 5 s rolling median | interest |
-| HiLights | in-camera tags (button / voice / remote) | strong interest bump |
+| HiLights | in-camera tags (button / voice / remote), if any | optional interest bump |
 | Water entry | wet-microphone transitions | interest bump |
 | Colourfulness | Hasler–Süsstrunk metric | small interest term |
 
@@ -289,7 +289,8 @@ two clips.
 - Gate thresholds against real drops; that trip had none.
 - Close-up selfies: CLIP rates them barely above scenery, so they rarely make
   the reel. Face detection (v0.5) is the planned fix.
-- The HERO13 HiLight tag layout when tags are present.
+- Reading HERO13 HiLight tags. Butterfly reads them if present, but this is
+  untested and not planned (see the roadmap).
 
 ## Roadmap
 
@@ -317,7 +318,8 @@ two clips.
 
 ### v0.3 — real-footage validation
 - [x] Dry-run with real CLIP weights on a real trip; tune `GATES` and prompts
-- [ ] Confirm the HERO13 HiLight layout with a tagged clip; remove the "unverified" note
+- ~~Confirm the HERO13 HiLight layout with a tagged clip~~ Dropped: Butterfly
+  is meant to be fully automatic, so it doesn't rely on manual tags
 - [ ] A small labelled set of real clips (good / drop / handling) as a second test suite
 
 ### v0.4 — motion understanding
@@ -344,9 +346,9 @@ two clips.
 
 ## Known limitations
 
-- HiLight tags added afterwards in the Quik app aren't stored in the MP4, so
-  Butterfly can't see them. Only tags made on the camera, remote or by voice
-  are readable.
+- Butterfly doesn't need HiLight tags. If you tag moments on the camera,
+  remote or by voice, it gives them a bonus, but this is untested on HERO13.
+  Tags added afterwards in the Quik app aren't stored in the MP4.
 - CLIP looks at the centre square of each frame, so action at the far edges of
   a wide shot is under-weighted.
 - HyperSmooth stabilises the picture, so gyro shake over-states visible shake.
@@ -374,6 +376,8 @@ two clips.
   and `<folder>/.butterfly/report/`. The reel stays at
   `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
 - Issue templates (bug report, roadmap item) and a pull request template.
+- Dropped the "confirm the HiLight layout" roadmap item: Butterfly is meant to
+  be automatic. Tags are still read if present, as an untested bonus.
 - Tuned on a real trip with CLIP. New prompts reward people floating and
   selfies; a new "murky underwater view" prompt marks cloudy underwater
   footage as unusable; the aesthetic baseline is now "a boring, badly framed
