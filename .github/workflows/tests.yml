@@ -1,0 +1,39 @@
+name: tests
+
+# The synthetic suite needs ffmpeg and Butterfly's core dependencies only:
+# no torch, no CLIP weights, no network beyond the installs.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Install Butterfly (core dependencies only)
+        run: python -m pip install -e .
+
+      - name: Run the synthetic test suite
+        run: python tests/run_synthetic.py

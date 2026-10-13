@@ -1,5 +1,7 @@
 # 🦋 Butterfly
 
+[![tests](https://github.com/liambarrett26/butterfly/actions/workflows/tests.yml/badge.svg)](https://github.com/liambarrett26/butterfly/actions/workflows/tests.yml)
+
 **Local highlight reels from GoPro footage.**
 
 Butterfly turns a folder of GoPro clips into a short highlight reel on your own
@@ -290,7 +292,7 @@ files with a separate probe script.
 
 ### v0.2.x — repository setup
 - [x] `pyproject.toml` with a `butterfly` console command and pinned dependencies
-- [ ] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
+- [x] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
 - [x] Licence (MIT)
 - [ ] Issue and PR templates
 - [ ] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
@@ -348,6 +350,8 @@ files with a separate probe script.
   Dependencies are pinned exactly, which raises the minimum to Python 3.12.
   matplotlib is now a core dependency; `vision` and `music` are extras.
   `python reel.py` still works.
+- CI: GitHub Actions runs the synthetic test suite on Ubuntu (Python 3.12,
+  core dependencies, no torch) on every push and pull request.
 
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned
