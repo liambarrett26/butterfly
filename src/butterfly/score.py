@@ -88,7 +88,6 @@ def compute(clips: list[Clip]) -> None:
             # motion only counts when it's smooth, intentional motion
             "action": W["action"] * (get("speed") + 0.5 * get("turn")) * (1 - np.clip(shaky, 0, 1)),
             "audio": W["audio"] * get("audio_peak"),
-            "hilight": W["hilight"] * _bumps(n, [h - C.HILIGHT_LEAD for h in c.hilights], C.HILIGHT_WIDTH),
             "water": W["water"] * _bumps(n, [w + 0.5 for w in c.events.get("water_entries", [])], 1.0),
         }
         interest = sum(parts.values()) + 0.05

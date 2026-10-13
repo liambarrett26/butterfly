@@ -1,4 +1,4 @@
-"""GoPro GPMF telemetry: stream loading, GPS decoding, HiLight tags."""
+"""GoPro GPMF telemetry: stream loading and GPS decoding."""
 
 from __future__ import annotations
 
@@ -83,67 +83,3 @@ def load_telemetry(path: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
             pass
     return out
 
-
-# ------------------------------------------------------------------ HiLights
-
-def _iter_boxes(f, start: int, end: int):
-    pos = start
-    while pos + 8 <= end:
-        f.seek(pos)
-        size, typ = struct.unpack(">I4s", f.read(8))
-        hdr = 8
-        if size == 1:
-            size, hdr = struct.unpack(">Q", f.read(8))[0], 16
-        elif size == 0:
-            size = end - pos
-        if size < hdr:
-            break
-        yield typ, pos, hdr, size
-        pos += size
-
-
-def _walk_klv(buf: bytes, off: int, end: int, depth: int = 0):
-    while off + 8 <= end:
-        key = buf[off:off + 4]
-        if key == b"\0\0\0\0":
-            break
-        typ = chr(buf[off + 4]) if buf[off + 4] else "\0"
-        length = buf[off + 5] * int.from_bytes(buf[off + 6:off + 8], "big")
-        data = buf[off + 8:off + 8 + length]
-        yield depth, key.decode("latin-1"), typ, data
-        if typ == "\0":
-            yield from _walk_klv(buf, off + 8, off + 8 + length, depth + 1)
-        off += 8 + ((length + 3) & ~3)
-
-
-def read_hilights(path: Path) -> tuple[list[float], list[str]]:
-    """In-camera HiLight tag times (s) + notes. Legacy HMMT box and HERO13 GPMF device."""
-    tags, notes = [], []
-    size = path.stat().st_size
-    with open(path, "rb") as f:
-        moov = next(((p, h, s) for t, p, h, s in _iter_boxes(f, 0, size) if t == b"moov"), None)
-        if not moov:
-            return tags, notes
-        udta = next(((p, h, s) for t, p, h, s in _iter_boxes(f, moov[0] + moov[1], moov[0] + moov[2])
-                     if t == b"udta"), None)
-        if not udta:
-            return tags, notes
-        for typ, p, h, s in _iter_boxes(f, udta[0] + udta[1], udta[0] + udta[2]):
-            f.seek(p + h)
-            payload = f.read(s - h)
-            if typ == b"HMMT" and len(payload) >= 4:
-                count = struct.unpack(">I", payload[:4])[0]
-                tags += [ms / 1000 for ms in struct.unpack(f">{count}I", payload[4:4 + 4 * count])]
-            elif typ == b"GPMF":
-                in_hl = False
-                for depth, key, t, data in _walk_klv(payload, 0, len(payload)):
-                    if depth == 0 and key == "DEVC":
-                        in_hl = False
-                    elif key in ("DVID", "DVNM") and data[:4] in (b"HLMT", b"High"):
-                        in_hl = True
-                    elif in_hl and t in ("L", "J") and key != "DVID":
-                        sz, code = (4, "I") if t == "L" else (8, "Q")
-                        vals = struct.unpack(f">{len(data) // sz}{code}", data[:len(data) // sz * sz])
-                        tags += [v / 1000 for v in vals]
-                        notes.append(f"HiLights from GPMF key {key} (unverified layout)")
-    return sorted(set(round(t, 3) for t in tags if t > 0)), notes

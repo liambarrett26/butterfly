@@ -83,8 +83,6 @@ def main() -> None:
         extra = []
         if c.events.get("drops"):
             extra.append(f"{len(c.events['drops'])} drop(s)")
-        if c.hilights:
-            extra.append("HiLights " + ", ".join(f"{h:.1f}s" for h in c.hilights))
         extra += c.notes
         print(f"  [{i}/{len(files)}] {f.name} {c.duration:6.1f}s  {time.time() - t0:5.1f}s  "
               f"{'; '.join(extra)}")

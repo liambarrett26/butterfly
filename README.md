@@ -40,8 +40,8 @@ Every 0.1 s of footage gets two separate values:
    darkness, blown-out frames, and the lens pointed at the floor all push it
    towards 0.
 2. **Interest: is it worth showing?** This comes from what's in the frame (a
-   CLIP vision model), how good it looks, *smooth* action, audio peaks, water
-   entries, and in-camera HiLight tags.
+   CLIP vision model), how good it looks, *smooth* action, audio peaks and
+   water entries. No manual tagging is needed.
 
 ```
 score(t) = interest(t) × q(t)
@@ -57,7 +57,7 @@ with the camera hitting the sand doesn't make the reel.
 ```
  folder of GX*.MP4
         │
-        ├── telemetry (GPMF) ─── accel · gyro · gravity · GPS9 · wet-mic · HiLights
+        ├── telemetry (GPMF) ─── accel · gyro · gravity · GPS9 · wet-mic
         │     └─ drops (free-fall), handling shake, tumble, smooth turns, speed, water entry
         ├── audio (ffmpeg) ───── loudness peaks above a rolling baseline
         └── vision (2 fps; uses GoPro .LRV proxies when present)
@@ -89,7 +89,6 @@ with the camera hitting the sand doesn't make the reel.
 | CLIP aesthetic | "beautiful photo" vs "boring snapshot" | interest |
 | Smooth action | GPS speed + low-passed turning, with shake removed | interest |
 | Audio peaks | loudness above a 5 s rolling median | interest |
-| HiLights | in-camera tags (button / voice / remote), if any | optional interest bump |
 | Water entry | wet-microphone transitions | interest bump |
 | Colourfulness | Hasler–Süsstrunk metric | small interest term |
 
@@ -183,14 +182,14 @@ Everything tunable lives in **`src/butterfly/config.py`**:
 - **Quality gates** (`GATES`): if good but bumpy riding footage is rejected,
   raise `shake_ride_speed` or lower `shake_penalty`.
 - **Interest weights** (`INTEREST_WEIGHTS`) balance vision, action, audio and
-  HiLights.
+  water entries.
 - **Spread across clips** (`PICKS_PER_CLIP_SLACK`): how many cuts one clip may
   take beyond an even share. Raise it if your best clip deserves more of the
   reel. On a trip where everything looks alike (all turquoise water, say),
   this does more than `DIVERSITY`, because CLIP sees every shot as similar.
 
 The HTML report shows a thumbnail and a "why" for every pick, plus a timeline
-per clip with score, quality, drops and HiLights. It's the main tool for
+per clip with score, quality and drops. It's the main tool for
 seeing what to change.
 
 ## Repository layout
@@ -200,7 +199,7 @@ butterfly/
 ├── src/butterfly/
 │   ├── cli.py               `butterfly` command: arguments and orchestration
 │   ├── config.py            all weights, thresholds and prompts
-│   ├── gpmf.py              GPMF telemetry, GPS9 decoding, HiLight tags
+│   ├── gpmf.py              GPMF telemetry and GPS9 decoding
 │   ├── signals.py           telemetry + audio features on the 0.1 s grid
 │   ├── vision.py            frame sampling, classic CV, CLIP scoring
 │   ├── analyse.py           per-clip orchestration and cache
@@ -289,8 +288,6 @@ two clips.
 - Gate thresholds against real drops; that trip had none.
 - Close-up selfies: CLIP rates them barely above scenery, so they rarely make
   the reel. Face detection (v0.5) is the planned fix.
-- Reading HERO13 HiLight tags. Butterfly reads them if present, but this is
-  untested and not planned (see the roadmap).
 
 ## Roadmap
 
@@ -319,7 +316,7 @@ two clips.
 ### v0.3 — real-footage validation
 - [x] Dry-run with real CLIP weights on a real trip; tune `GATES` and prompts
 - ~~Confirm the HERO13 HiLight layout with a tagged clip~~ Dropped: Butterfly
-  is meant to be fully automatic, so it doesn't rely on manual tags
+  is fully automatic, and HiLight support has been removed
 - [ ] A small labelled set of real clips (good / drop / handling) as a second test suite
 
 ### v0.4 — motion understanding
@@ -346,9 +343,9 @@ two clips.
 
 ## Known limitations
 
-- Butterfly doesn't need HiLight tags. If you tag moments on the camera,
-  remote or by voice, it gives them a bonus, but this is untested on HERO13.
-  Tags added afterwards in the Quik app aren't stored in the MP4.
+- Butterfly ignores HiLight tags made on the camera. It picks moments
+  automatically, and doesn't depend on a feature specific to one camera
+  maker.
 - CLIP looks at the centre square of each frame, so action at the far edges of
   a wide shot is under-weighted.
 - HyperSmooth stabilises the picture, so gyro shake over-states visible shake.
@@ -376,8 +373,10 @@ two clips.
   and `<folder>/.butterfly/report/`. The reel stays at
   `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
 - Issue templates (bug report, roadmap item) and a pull request template.
-- Dropped the "confirm the HiLight layout" roadmap item: Butterfly is meant to
-  be automatic. Tags are still read if present, as an untested bonus.
+- Removed HiLight tag support (the `hilight` interest part, its settings, and
+  the report markers). Butterfly is fully automatic and shouldn't depend on
+  a GoPro-only feature. `CACHE_VERSION` is now 4, so the first run
+  re-analyses.
 - Tuned on a real trip with CLIP. New prompts reward people floating and
   selfies; a new "murky underwater view" prompt marks cloudy underwater
   footage as unusable; the aesthetic baseline is now "a boring, badly framed
