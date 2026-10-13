@@ -280,7 +280,8 @@ files with a separate probe script.
 ### v0.2.x — repository setup
 - [ ] `pyproject.toml` with a `butterfly` console command and pinned dependencies
 - [ ] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
-- [ ] Licence, plus issue and PR templates
+- [x] Licence (MIT)
+- [ ] Issue and PR templates
 - [ ] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
 
 ### v0.3 — real-footage validation
@@ -330,6 +331,7 @@ files with a separate probe script.
 - Imported the v0.2 code into the repository root; `.gitignore` now covers
   Butterfly's outputs and footage. Install steps use a dedicated conda
   environment, and Pillow is no longer listed (nothing imports it).
+- Licence confirmed as MIT.
 
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned
@@ -355,5 +357,4 @@ GoPro, Inc. GoPro, HERO, HiLight and Quik are trademarks of GoPro, Inc.
 
 ## Licence
 
-Not yet chosen (tracked under v0.2.x). Until a licence is added, all rights
-are reserved by the author.
+[MIT](LICENSE) © 2026 Liam Barrett.
