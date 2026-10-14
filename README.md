@@ -14,7 +14,7 @@ are planned.
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.8).** The pipeline runs end-to-end, passes
+> **Status: early development (v0.9).** The pipeline runs end-to-end, passes
 > its synthetic test suite, and has been tuned with CLIP on one real GoPro
 > trip. Phone video is supported, but not yet tested on real phone footage.
 > See [Project status](#project-status).
@@ -352,11 +352,21 @@ two clips.
 
 ### Not yet verified
 
-- Trips that look different from that one: snow, cities, biking. The tuning
-  so far is based on a single water-heavy trip.
-- Gate thresholds against real drops; that trip had none.
-- Faces on footage other than this trip's (groups, small faces far away). Face
-  detection runs on 320 px analysis frames, so distant faces may be missed.
+Everything below works on synthetic tests, but hasn't met real footage yet:
+
+- **Phone video:** `.MOV`, portrait, the optical-flow shake gate. Only GoPro
+  footage has been tested so far.
+- **Other kinds of trip:** snow, cities, biking, and the `snow`, `city` and
+  `bike` presets. The tuning so far is based on a single water-heavy trip.
+- **Real drops:** gate thresholds against an actual dropped camera (that trip
+  had none).
+- **Audio events:** laughter, cheering and splash on real audio (the trip had
+  none; wind and speech were measured).
+- **Slow motion:** on real ≥ 100 fps clips.
+- **Faces beyond selfies:** groups, and small faces far away (detection runs
+  on 320 px analysis frames).
+- **The learned ranker** trained on reviewed labels (the 22 GoPro labels were
+  drafted from contact sheets).
 
 ## Roadmap
 
@@ -421,7 +431,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Shot segmentation from embedding change points, at most one pick per shot
 - [x] Multi-day folders: one reel per day, or a trip reel with day titles
 
-### v0.9 — personalisation
+### v0.9 — personalisation ✅
 - [x] Thumbs up/down on picks in the HTML report, saved to a labels file
 - [x] A learned ranker over window features, replacing hand-set weights
 - [x] Trip presets (beach, snow, city, bike)
@@ -449,32 +459,30 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Trip presets: `--preset beach|snow|city|bike` adds prompts for that kind of
-  trip and tunes weights and gates (`config.PRESETS`). On the mangrove trip,
-  `beach` kept the evaluation unchanged (6/10 good moments picked, 0
-  violations).
-
-### Unreleased
-
-- Learned ranker: `butterfly-train FOLDER` learns interest weights from your
-  labels with a logistic regression over the unweighted interest parts. The
-  learned weights are blended with the hand-set ones by how many labels there
-  are, and checked by leave-one-clip-out cross-validation. `--ranker auto`
-  uses them only if they beat the hand weights. Signals absent from your
-  labels keep their hand weights. On the 22 drafted GoPro labels the
-  cross-validated AUC rose from 0.71 to 0.86 (more weight on people and
-  aesthetics, less on CLIP semantics).
-
-### Unreleased
-
-- Label from the report: every pick and photo has 👍 good / 👎 dull /
-  🚫 unusable buttons. `butterfly-review FOLDER` serves the report on
-  127.0.0.1 and saves clicks straight into `.butterfly/labels.json` (the
-  `butterfly-eval` format). Opened as a file, the report collects them in the
-  browser for download.
-
+- **0.9.0** (2026-10-14): Personalisation.
+  - Trip presets: `--preset beach|snow|city|bike` adds prompts for that kind of
+    trip and tunes weights and gates (`config.PRESETS`). On the mangrove trip,
+    `beach` kept the evaluation unchanged (6/10 good moments picked, 0
+    violations).
+  
+  ### Unreleased
+  
+  - Learned ranker: `butterfly-train FOLDER` learns interest weights from your
+    labels with a logistic regression over the unweighted interest parts. The
+    learned weights are blended with the hand-set ones by how many labels there
+    are, and checked by leave-one-clip-out cross-validation. `--ranker auto`
+    uses them only if they beat the hand weights. Signals absent from your
+    labels keep their hand weights. On the 22 drafted GoPro labels the
+    cross-validated AUC rose from 0.71 to 0.86 (more weight on people and
+    aesthetics, less on CLIP semantics).
+  
+  ### Unreleased
+  
+  - Label from the report: every pick and photo has 👍 good / 👎 dull /
+    🚫 unusable buttons. `butterfly-review FOLDER` serves the report on
+    127.0.0.1 and saves clicks straight into `.butterfly/labels.json` (the
+    `butterfly-eval` format). Opened as a file, the report collects them in the
+    browser for download.
 - **0.8.0** (2026-10-14): Structure.
   - Multi-day folders: `--days split` makes one reel per day; `--days titles`
     makes one trip reel where a title card ("Day 4 · Sat 21 Feb 2026", over a
