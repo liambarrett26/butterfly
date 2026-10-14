@@ -41,6 +41,15 @@ def _bumps(n: int, centres: list[float], sigma: float) -> np.ndarray:
     return np.clip(out, 0, 1.5)
 
 
+def _people_parts(f: dict, n: int) -> dict:
+    """Faces and people as absolute interest parts (presence means the same in any folder)."""
+    if "face_area" not in f:
+        return {}
+    W = C.INTEREST_WEIGHTS
+    return {"faces": W["faces"] * _ramp(f["face_area"][:n], C.FACE_LO, C.FACE_HI),
+            "people": W["people"] * np.clip(f["n_people"][:n] / 3, 0, 1)}
+
+
 def compute(clips: list[Clip]) -> None:
     """Gates -> q, parts -> interest, score = interest × q. Videos and photos are normalised separately."""
     _compute_videos([c for c in clips if c.kind == "video"])
@@ -69,6 +78,7 @@ def _compute_photos(photos: list[Clip]) -> None:
         for g in gates.values():
             q = q * g
         parts = {k: W[k] * get(k) for k in ("semantic", "aesthetic", "colour")}
+        parts.update(_people_parts(f, 1))
         c.gates, c.parts, c.q = gates, parts, q
         c.interest = sum(parts.values()) + 0.05
         c.score = c.interest * q
@@ -143,6 +153,7 @@ def _compute_videos(clips: list[Clip]) -> None:
             "audio": W["audio"] * get("audio_peak"),
             **{e: W[e] * _ramp(f[f"ev_{e}"][:n], C.EVENT_LO, C.EVENT_HI)
                for e in ("laughter", "cheering", "splash", "speech") if f"ev_{e}" in f},
+            **_people_parts(f, n),
             "water": W["water"] * _bumps(n, [w + 0.5 for w in c.events.get("water_entries", [])], 1.0),
         }
         interest = sum(parts.values()) + 0.05

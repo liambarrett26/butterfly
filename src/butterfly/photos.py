@@ -91,7 +91,7 @@ def device_of(exif) -> str:
     return model or make or "unknown"
 
 
-def analyse_photo(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = False) -> Clip:
+def analyse_photo(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = False, people=None) -> Clip:
     """Quality metrics + CLIP for one photo, cached like a clip. `created` is set by assign_times."""
     cache = cache_path(path, cache_dir, tag)
     clip = Clip(path, 0.0, datetime.min, False, 0.0, kind="photo")
@@ -116,6 +116,8 @@ def analyse_photo(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool =
         s = scorer.score(frame)
         clip.feats.update({k: s[k].astype(float) for k in ("semantic", "clip_bad", "aesthetic")})
         clip.emb_t, clip.emb = np.zeros(1), s["embedding"]
+    if people is not None:
+        clip.feats.update(people.detect(frame))
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     arrays = {f"f_{k}": v for k, v in clip.feats.items()}

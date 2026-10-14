@@ -26,7 +26,8 @@ vision = ["torch==2.14.1", "open_clip_torch==3.3.0"]
 music = ["librosa==1.0.0"]
 photos = ["pillow-heif==1.8.1"]
 audio = ["torch==2.14.1", "transformers==5.19.0"]
-all = ["butterfly[vision,music,photos,audio]"]
+people = ["pyobjc-framework-Vision==12.2.2; sys_platform == 'darwin'"]
+all = ["butterfly[vision,music,photos,audio,people]"]
 
 [project.scripts]
 butterfly = "butterfly.cli:main"
