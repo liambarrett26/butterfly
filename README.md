@@ -237,6 +237,12 @@ branch and one pull request.
    shake, smooth riding, blur, darkness) and checks the gates and picks. It
    needs no network or model. When you add a signal or gate, add a synthetic
    region and a check for it.
+
+   On real footage, keep a labels file (good / unusable / dull time ranges;
+   see [docs/labels.md](docs/labels.md)) and compare before and after a change:
+   ```bash
+   butterfly-eval ~/Movies/GoPro --strict   # per-label quality, gated, picked; exit 1 on violations
+   ```
 4. **Bump `CACHE_VERSION`** in `src/butterfly/config.py` if you change what the analysis
    computes. Otherwise stale cached features are silently reused.
 5. **Update the docs:** tick the roadmap item below, add an entry to the
@@ -264,7 +270,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (24 / 24 checks
+Tested end-to-end on synthetic clips with injected telemetry (27 / 27 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -335,8 +341,9 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md)
   telemetry. Subject motion is measured too, but is off as interest for now:
   on real footage it mostly picks up parallax and water
 - [x] Portrait clips in a landscape reel: a blurred fill instead of black bars
-- [ ] A labelled set of real clips (good / unusable / dull) from a mixed
-  GoPro + phone folder, as a second test suite
+- [x] A labelled set of real clips (good / unusable / dull) and
+  `butterfly-eval` to check against it ([format](docs/labels.md)). GoPro
+  footage is labelled; phone footage is still to come
 
 ### v0.5 — photos
 Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v05)
@@ -393,6 +400,9 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - Portrait and other non-16:9 clips now sit on a blurred, dimmed copy of
   themselves instead of black bars (`FILL_*` in `config.py`). 16:9 clips
   render exactly as before.
+- `butterfly-eval`: checks quality gates and picks against hand labels (good /
+  unusable / dull time ranges, [docs/labels.md](docs/labels.md)). It reports
+  per-label quality, gated and picked shares, and violations.
 
 - **0.3.0** (2026-10-14): Real-footage tuning, a proper package, and the
   first steps beyond GoPro.
