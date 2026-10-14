@@ -221,9 +221,11 @@ __marimo__/
 
 # ---------------------------------------------------------------- Butterfly
 # Outputs written into the footage folder, and test artefacts
-.reel_cache/
+.butterfly/
 tests/.synthetic/
 highlights*.mp4
+# Output paths used before 0.2.3
+.reel_cache/
 highlights*_report/
 # Footage must never be committed
 *.MP4
