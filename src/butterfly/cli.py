@@ -116,6 +116,8 @@ def main() -> None:
                     help="multi-day folders: split = one reel per day; titles = one trip reel with a title card per day")
     ap.add_argument("--tz", metavar="±HH:MM", help="the trip's UTC offset for --days (default: from photos, GPS, "
                                                   "or this computer)")
+    ap.add_argument("--preset", choices=sorted(C.PRESETS), help="trip preset: adds prompts and tunes weights "
+                                                               "and gates for that kind of trip")
     ap.add_argument("--ranker", default="auto", metavar="auto|off|FILE",
                     help="learned interest weights: auto = <folder>/.butterfly/ranker.json if it beat the hand "
                          "weights (butterfly-train), off, or a ranker.json from another trip")
@@ -144,7 +146,13 @@ def main() -> None:
     out = (args.out or folder / "highlights.mp4").expanduser()
     work = folder / C.OUTPUT_DIR  # cache/ and report/; an old .reel_cache/ is left alone
 
+    if args.preset:
+        try:
+            C.apply_preset(args.preset)
+        except ValueError as e:
+            sys.exit(str(e))
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
+    tag += f"+preset-{args.preset}" if args.preset else ""
     tagger, suffix = load_tagger(not (args.no_vision or args.no_audio_events))
     people, psuffix = load_people(not (args.no_vision or args.no_faces))
     clips = analyse_folder(folder, files, scorer, tag + suffix + psuffix, args.refresh, not args.no_vision, photos,

@@ -171,3 +171,48 @@ SHOT_WINDOW_S = 2.0      # shots: novelty compares the mean CLIP embedding of th
 SHOT_NOVELTY = 0.12      # …a peak at or above this (1 − cosine) is a shot boundary (calm footage: ~0.02–0.07)…
 SHOT_MIN_S = 3.0         # …and shots are at least this long. One pick per shot (relaxed only to fill the reel)
 PICKS_PER_CLIP_SLACK = 1  # cuts a clip may take beyond its even share, ceil(cuts / clips)
+
+# ---------------------------------------------------------------- trip presets (--preset)
+# Each adds CLIP prompts and overrides weights / gates for one kind of trip. Applied once at start-up
+# (apply_preset), before CLIP encodes the prompts; the cache tag includes the preset.
+PRESETS = {
+    "beach": {
+        "prompts": ["a sunny beach with turquoise water", "people swimming in the sea",
+                    "snorkelling in clear water over a reef", "a sunset on the beach"],
+        "negative": ["sand or salt water smeared on the camera lens"],
+        "weights": {"aesthetic": 0.8, "faces": 0.9},
+        "gates": {"clipped_frac": 0.5},                    # bright sand and sea glare aren't a fault
+    },
+    "snow": {
+        "prompts": ["skiing down a snowy slope", "snowboarding through fresh powder",
+                    "a snowy mountain panorama", "friends in ski gear on a mountain"],
+        "negative": ["snow or fog covering the camera lens"],
+        "weights": {"action": 1.2},
+        "gates": {"clipped_frac": 0.65, "shake_ride_speed": 5.0},   # white snow; skiing is fast
+    },
+    "city": {
+        "prompts": ["a busy city street", "historic architecture in an old town",
+                    "a lively street market", "a city skyline at night"],
+        "negative": ["the inside of a pocket while walking"],
+        "weights": {"action": 0.3, "faces": 1.0},       # walking pace isn't action; people matter
+        "gates": {"dark_luma": 28},                      # evening streets are darker, still usable
+    },
+    "bike": {
+        "prompts": ["riding a bike along a scenic road", "mountain biking on a forest trail",
+                    "a cyclist on a winding mountain road", "riding a scooter through the countryside"],
+        "negative": ["handlebars filling the whole frame"],
+        "weights": {"action": 1.2},
+        "gates": {"shake_ride_speed": 2.5, "shake_ride_factor": 0.3},  # bumpy riding is still riding
+    },
+}
+
+
+def apply_preset(name: str) -> None:
+    """Merge PRESETS[name] into the prompts, weights and gates (call once, before CLIP loads)."""
+    if name not in PRESETS:
+        raise ValueError(f"unknown preset {name!r}: choose from {', '.join(PRESETS)}")
+    p = PRESETS[name]
+    POSITIVE_PROMPTS.extend(x for x in p.get("prompts", []) if x not in POSITIVE_PROMPTS)
+    NEGATIVE_PROMPTS.extend(x for x in p.get("negative", []) if x not in NEGATIVE_PROMPTS)
+    INTEREST_WEIGHTS.update(p.get("weights", {}))
+    GATES.update(p.get("gates", {}))
