@@ -32,6 +32,7 @@ all = ["butterfly[vision,music,photos,audio,people]"]
 [project.scripts]
 butterfly = "butterfly.cli:main"
 butterfly-eval = "butterfly.evaluate:main"
+butterfly-review = "butterfly.review:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "butterfly.__version__" }

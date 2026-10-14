@@ -31,6 +31,56 @@ def _photo_thumb(path: Path, out: Path) -> bool:
         return False
 
 
+def _label_buttons(clip_name: str, start: float | None = None, end: float | None = None) -> str:
+    """good / dull / unusable buttons; butterfly-review saves clicks to the labels file."""
+    rng = f' data-start="{start:.2f}" data-end="{end:.2f}"' if start is not None else ""
+    return (f'<div class="lab" data-clip="{html.escape(clip_name)}"{rng}>'
+            '<button data-l="good" title="good: worth showing">👍</button>'
+            '<button data-l="dull" title="dull: usable but not worth showing">👎</button>'
+            '<button data-l="unusable" title="unusable: never pick this">🚫</button></div>')
+
+
+SCRIPT = """
+const KEY = "butterfly-labels:" + document.body.dataset.folder;
+const served = location.protocol.startsWith("http");
+const same = (a, b) => a.clip === b.clip && (a.start === undefined ? b.start === undefined
+  : b.start !== undefined && Math.abs(a.start - b.start) < 0.25 && Math.abs(a.end - b.end) < 0.25);
+function load() { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; } }
+function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {} }
+function mark(list) {
+  document.querySelectorAll(".lab").forEach(el => {
+    const e = entry(el, null), hit = list.find(x => same(x, e));
+    el.querySelectorAll("button").forEach(b => b.classList.toggle("on", !!hit && hit.label === b.dataset.l));
+  });
+  const bar = document.getElementById("dl");
+  if (bar) bar.hidden = served || !list.length, bar.querySelector("span").textContent = list.length;
+}
+function entry(el, label) {
+  const e = {clip: el.dataset.clip};
+  if (el.dataset.start !== undefined) { e.start = +el.dataset.start; e.end = +el.dataset.end; }
+  if (label) { e.label = label; e.note = "from the report"; }
+  return e;
+}
+let labels = load();
+document.querySelectorAll(".lab button").forEach(b => b.addEventListener("click", async () => {
+  const e = entry(b.parentElement, b.dataset.l);
+  labels = labels.filter(x => !same(x, e)).concat([e]);
+  if (served) {
+    try { await fetch("/api/label", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(e)}); }
+    catch (err) { alert("Couldn't save the label: is butterfly-review still running?"); }
+  } else save(labels);
+  mark(labels);
+}));
+document.getElementById("dlbtn")?.addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify({version: 1, labels: labels}, null, 2)], {type: "application/json"});
+  const a = Object.assign(document.createElement("a"), {href: URL.createObjectURL(blob), download: "labels.json"});
+  a.click();
+});
+if (served) fetch("/api/labels").then(r => r.json()).then(d => { labels = d.labels || []; mark(labels); }).catch(() => mark(labels));
+else mark(labels);
+"""
+
+
 def _timeline(c, picks, out: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -76,6 +126,10 @@ h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 12px}
 .clip img{width:100%;height:auto;background:#fff;border-radius:6px}
 .card.gated{opacity:.55}.card .bad{color:#d64545;font-weight:600}
 table.dev{border-collapse:collapse;font-size:13px}table.dev td{padding:4px 12px 4px 0;border-bottom:1px solid var(--line)}
+.lab{margin-top:6px}.lab button{font-size:15px;background:none;border:1px solid var(--line);border-radius:8px;
+padding:2px 8px;margin-right:4px;cursor:pointer}.lab button.on{background:var(--accent);border-color:var(--accent)}
+#dl{position:fixed;bottom:16px;right:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;
+padding:10px 14px;box-shadow:0 2px 10px rgba(0,0,0,.15)}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);margin-right:6px}
 """
 
@@ -99,7 +153,9 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
         cards.append(
             f'<div class="card"><img src="{src}" alt=""><div class="b">'
             f'<div class="t">#{i} · {html.escape(p.clip.path.name)} · {span}</div>'
-            f'<div class="muted">score {p.score:.2f}</div><div>{html.escape(p.reasons)}</div></div></div>')
+            f'<div class="muted">score {p.score:.2f}</div><div>{html.escape(p.reasons)}</div>'
+            + (_label_buttons(p.clip.path.name) if photo else _label_buttons(p.clip.path.name, p.start, p.start + p.src_dur))
+            + '</div></div>')
 
     photo_cards = []
     for c in sorted((c for c in clips if c.kind == "photo"), key=lambda c: -float(c.score[0])):
@@ -115,7 +171,7 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
                else '<div class="bad">gated: not usable</div>' if gated else "")
             + f'<div>{html.escape(why(c, 0, 1))}</div>'
             + (f'<div class="muted">{html.escape("; ".join(c.notes))}</div>' if c.notes else "")
-            + '</div></div>')
+            + _label_buttons(c.path.name) + '</div></div>')
 
     sections = []
     for c in (c for c in clips if c.kind == "video"):
@@ -150,7 +206,7 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
                    f'<div class="grid">{"".join(photo_cards)}</div>') if photo_cards else ""
     page = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Highlight report</title>
-<style>{CSS}</style></head><body><main>
+<style>{CSS}</style></head><body data-folder="{html.escape(str(folder))}"><main>
 <h1>Highlight report</h1>
 <div class="muted">{html.escape(str(folder))} · {sum(c.kind == "video" for c in clips)} clips · {len(photo_cards)} photos · {len(picks)} cuts · {total:.1f}s · {html.escape(settings)}</div>
 <h2>Picks</h2><div class="grid">{''.join(cards)}</div>
@@ -160,7 +216,13 @@ green = picked, red = drop (free-fall), dotted = shot boundary (at most one pick
 {''.join(sections)}
 {photos_html}
 {devices_html}
-</main></body></html>"""
+<div class="muted" style="margin-top:24px">Label picks and photos with 👍 good / 👎 dull / 🚫 unusable.
+Run <code>butterfly-review {html.escape(str(folder))}</code> to save them straight to
+<code>.butterfly/labels.json</code>; they feed <code>butterfly-eval</code> and the learned ranker.</div>
+</main>
+<div id="dl" hidden><span>0</span> label(s) in this browser ·
+<button id="dlbtn">Download labels.json</button> → save it as <code>.butterfly/labels.json</code></div>
+<script>{SCRIPT}</script></body></html>"""
     index = out_dir / "index.html"
     index.write_text(page)
     return index
