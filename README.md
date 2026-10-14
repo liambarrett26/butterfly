@@ -14,7 +14,7 @@ are planned.
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.3).** The pipeline runs end-to-end, passes
+> **Status: early development (v0.4).** The pipeline runs end-to-end, passes
 > its synthetic test suite, and has been tuned with CLIP on one real GoPro
 > trip. Phone video is supported, but not yet tested on real phone footage.
 > See [Project status](#project-status).
@@ -334,7 +334,7 @@ two clips.
   is fully automatic, and HiLight support has been removed
 - The labelled real-footage set moved to v0.4, so it can cover more than GoPro
 
-### v0.4 — any video
+### v0.4 — any video ✅
 Design: [docs/design/any-footage.md](docs/design/any-footage.md)
 - [x] Pick up `.MOV` / `.m4v` files and honour rotation metadata
 - [x] Optical flow: a vision-based camera-shake gate for footage without
@@ -395,15 +395,14 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Portrait and other non-16:9 clips now sit on a blurred, dimmed copy of
-  themselves instead of black bars (`FILL_*` in `config.py`). 16:9 clips
-  render exactly as before.
-- `butterfly-eval`: checks quality gates and picks against hand labels (good /
-  unusable / dull time ranges, [docs/labels.md](docs/labels.md)). It reports
-  per-label quality, gated and picked shares, and violations.
-
+- **0.4.0** (2026-10-14): Any video. Completes the v0.4 milestone; the
+  `.MOV`/rotation support and optical-flow shake gate shipped in 0.3.0.
+  - Portrait and other non-16:9 clips sit on a blurred, dimmed copy of
+    themselves instead of black bars (`FILL_*` in `config.py`). 16:9 clips
+    render exactly as before.
+  - `butterfly-eval`: checks quality gates and picks against hand labels
+    (good / unusable / dull time ranges, [docs/labels.md](docs/labels.md)).
+    It reports per-label quality, gated and picked shares, and violations.
 - **0.3.0** (2026-10-14): Real-footage tuning, a proper package, and the
   first steps beyond GoPro.
   - **Package and tooling:**
