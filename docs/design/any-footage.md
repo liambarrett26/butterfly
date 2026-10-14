@@ -1,6 +1,7 @@
 # Design: footage from any source, and photos in the reel
 
-Status: **proposal, for the owner to approve before implementation.**
+Status: **approved by the owner (2026-10-14)**, with the decisions recorded under
+"Decisions" at the end.
 Tracks issue #14 (any source) and the v0.4 / v0.5 roadmap milestones.
 
 Butterfly started as a GoPro tool. A holiday folder is usually a mix: GoPro
@@ -109,6 +110,16 @@ Chronological order across devices is the hardest part.
 - Photos: EXIF `DateTimeOriginal` plus `OffsetTimeOriginal` gives UTC. If the
   offset is missing, assume the folder's majority offset, and say so in the
   report.
+- **Photos without EXIF are common.** In the owner's example set, 4 of 6
+  photos have no EXIF at all (exported or edited copies). Fallback order:
+  1. EXIF time and offset;
+  2. EXIF time plus the folder's majority offset;
+  3. a timestamp in the filename (`IMG_20261010_123526`, `PXL_…`,
+     `2026-10-10 12.35.26`);
+  4. file modification time, flagged in the report as unreliable.
+
+  An item with no trustworthy time is placed by visual similarity next to
+  its closest neighbours in the plan, not by its modification time.
 - Devices with a wrong clock: `--clock-offset DEVICE=±HH:MM` (device = EXIF
   `Model`, or "GoPro"), plus a report warning when one device's items cluster
   hours away from everything else.
@@ -171,11 +182,10 @@ option could use its 1.5 s of motion in place of the Ken Burns move.
 - **Framing:** a landscape photo fills the frame, with a centre crop of at
   most 10% if its aspect differs. Portrait photos use the same blurred-fill
   treatment as portrait video.
-- **Audio:**
-  - With music: the music plays through.
-  - Without music: room tone from neighbouring video doesn't really exist,
-    so the photo segment gets silence, with 0.15 s audio crossfades either
-    side so the cut isn't abrupt.
+- **Audio:** **music is on by default and optional** (owner decision).
+  - With music (the default): the music plays through photos.
+  - With music turned off: photo segments get silence, with 0.15 s audio
+    crossfades either side so the cut isn't abrupt.
 - **Transitions:** hard cuts, like video. An optional short `xfade` into and
   out of photo runs can come later; it's an aesthetic choice for the owner.
 - **Render pipeline:** a photo segment is rendered to the same intermediate
@@ -218,12 +228,48 @@ reel.
 
 ## Open questions for the owner
 
-1. **Photo share:** is 25% of the cuts about right? Should a photo-heavy trip
-   be allowed more automatically?
-2. **Ken Burns:** a gentle zoom by default, or static stills?
-3. **Without music:** is silence under photos acceptable, or should the reel
-   then use a soft fade-through?
-4. **HEIC:** OK to add `pillow-heif` as an optional `photos` extra?
-5. **Vertical reels:** wanted soon (`--aspect 9:16`), or later?
-6. **Real test material:** a folder with phone video (some portrait, some
-   shaky) and photos, including a burst and a Live Photo, to tune against.
+Answered on 2026-10-14; see "Decisions" below.
+
+## Decisions (owner, 2026-10-14)
+
+1. **Photo share:** `MAX_PHOTO_SHARE = 0.25` of the cuts.
+2. **Motion:** a gentle Ken Burns zoom on every photo by default.
+3. **Music:** on by default, and optional. Reels get music unless the user
+   turns it off; photos sit under the music. The source is decided (see
+   "Music source" below): the user's own song or set if they name one,
+   otherwise bundled free tracks chosen by vibe.
+4. **HEIC:** `pillow-heif` as a pinned optional `photos` extra.
+5. **Vertical reels:** later, not in v0.5.
+6. **Test material:** the owner's labelled examples are in
+   `example_photos/` in the repo. That folder is excluded via
+   `.git/info/exclude` and never committed. It holds six JPEGs:
+   `good_landscape`, `good_portrait`, iPhone `good_landscape` and
+   `good_portrait`, `landscape_out_of_focus` and `landscape_shaky`. Only the
+   two iPhone shots have EXIF. The labels in the filenames are the expected
+   outcome: the two bad shots must be gated (blur), and the four good ones
+   usable. More material (phone video, a burst, a Live Photo) is still
+   wanted.
+
+### Music source (decided 2026-10-14; low priority)
+
+A mix of options (a) and (b):
+
+- **A specific song or set of songs:** the user names it, and Butterfly uses
+  it. `--music FILE` works as now; `--music DIR` (new) treats a folder as a
+  set and picks the track whose length and tempo best fit the reel.
+- **Just a vibe:** Butterfly uses a **bundled library of free tracks**, chosen
+  with `--vibe NAME` (e.g. `chill`, `upbeat`), or a default vibe when nothing
+  is given.
+  - The tracks are **not committed**. A tracked script downloads them, with a
+    tracked manifest listing URL, licence, checksum and vibe tags, into a
+    local, git-ignored folder. Only the script and manifest live in git.
+  - Every track must have a licence that allows use in personal videos. The
+    manifest records it, and the script verifies checksums.
+  - Downloading is the only network access, it happens on request (like
+    model weights on first use), and nothing is ever uploaded.
+- **Turning music off:** `--no-music` gives no music; photos then get
+  silence with short crossfades (see above).
+- **No tracks downloaded yet:** the reel is made without music, with one
+  console line saying how to fetch the library.
+
+Which tracks to bundle, and the vibe names, are to be explored later.
