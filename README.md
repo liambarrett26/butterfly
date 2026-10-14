@@ -14,7 +14,7 @@ are planned.
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.5).** The pipeline runs end-to-end, passes
+> **Status: early development (v0.6).** The pipeline runs end-to-end, passes
 > its synthetic test suite, and has been tuned with CLIP on one real GoPro
 > trip. Phone video is supported, but not yet tested on real phone footage.
 > See [Project status](#project-status).
@@ -364,7 +364,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Bursts and duplicates collapsed, photos of a moment already in a picked
   video dropped, clocks aligned across devices, and Live Photos paired
 
-### v0.6 — motion and timing
+### v0.6 — motion and timing ✅
 - [x] Smart in/out points: shift cuts off shake and onto motion onsets
 - [x] Slow motion for high-frame-rate clips (≥ 100 fps)
 
@@ -404,17 +404,15 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Slow motion: up to two of the reel's best cuts from clips shot at
-  ≥ 100 fps play at half speed. They fill the same slot from half as much
-  source, taken from the best-scoring stretch. `--no-slowmo` turns it off.
-- Smart in/out points: once a cut's length is final, it may move up to
-  ±0.5 s, first to raise its lowest quality, then to start where activity
-  rises (frame change, else loudness). It never overlaps another cut of the
-  same clip. On the real GoPro folder, 5 of 12 cuts moved, and the worst
-  cut's 5th-percentile quality rose from 0.64 to 0.74.
-
+- **0.6.0** (2026-10-14): Motion and timing.
+  - Slow motion: up to two of the reel's best cuts from clips shot at
+    ≥ 100 fps play at half speed. They fill the same slot from half as much
+    source, taken from the best-scoring stretch. `--no-slowmo` turns it off.
+  - Smart in/out points: once a cut's length is final, it may move up to
+    ±0.5 s, first to raise its lowest quality, then to start where activity
+    rises (frame change, else loudness). It never overlaps another cut of the
+    same clip. On the real GoPro folder, 5 of 12 cuts moved, and the worst
+    cut's 5th-percentile quality rose from 0.64 to 0.74.
 - **0.5.0** (2026-10-14): Photos in the reel.
   - Photos (`.jpg .jpeg .png .heic .heif`) in the folder are analysed: EXIF
     orientation, capture time (EXIF time and offset, then a timestamp in the
