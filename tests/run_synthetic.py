@@ -73,9 +73,27 @@ def make_clips() -> None:
                        + enc[:4] + [str(tmp)], check=True)
         subprocess.run(ff + ["-display_rotation", "90", "-i", str(tmp), "-c", "copy", str(rot)], check=True)
         tmp.unlink()
+    # optical flow: one textured scene seen three ways, no telemetry (like a phone)
+    tex = DATA / "_texture.png"
+    flow_specs = {
+        "IMG_0002.MOV": "[0:v]crop=640:360:320:180[bg];color=c=red:s=160x160:r=30[o];"
+                        "[bg][o]overlay=x='mod(t*150\\,480)':y=100:shortest=1",          # subject moves
+        "IMG_0003.MOV": "[0:v]crop=640:360:'100+50*t':180",                               # smooth pan
+        "IMG_0004.MOV": "[0:v]crop=640:360:'320+30*sin(t*25)+20*sin(t*41)':'180+20*sin(t*33)+15*sin(t*47)'",  # shaky
+    }
+    if not all((DATA / n).exists() for n in flow_specs):
+        subprocess.run(ff + ["-f", "lavfi", "-i",
+                             "nullsrc=s=1280x720,geq=lum='128+50*sin(X/17+3*sin(Y/29))+40*sin(Y/11+2*sin(X/37))'"
+                             ":cb=128:cr=128", "-frames:v", "1", str(tex)], check=True)
+        for name, graph in flow_specs.items():
+            subprocess.run(ff + ["-loop", "1", "-framerate", "30", "-t", "10", "-i", str(tex),
+                                 "-filter_complex", graph, "-t", "10"] + enc[:4] + [str(DATA / name)], check=True)
+        tex.unlink()
 
 
 def fake_telemetry(path: Path) -> dict:
+    if path.name.startswith("IMG_"):
+        return {}                                           # phone-style clip: no telemetry
     rng = np.random.default_rng(0)
     r = 200
     t = np.arange(0, DUR, 1 / r)
@@ -127,6 +145,20 @@ def rotated_portrait() -> bool:
     return frames.shape[1] > frames.shape[2]
 
 
+def flow_checks() -> dict:
+    """Optical flow on the three no-telemetry clips: subject vs pan vs shake."""
+    obj, pan, shaky = clips = [analyse.analyse_clip(DATA / n, None, DATA / ".cache", "test", refresh=True)
+                               for n in ("IMG_0002.MOV", "IMG_0003.MOV", "IMG_0004.MOV")]
+    compute(clips)
+    mid = lambda a: float(a[10:-10].mean())                 # skip the first and last second
+    return {
+        "moving subject outscores a camera pan": mid(obj.feats["subject_motion"]) > 5 * mid(pan.feats["subject_motion"]) + 0.05,
+        "smooth pan is not shake (no gyro)": mid(pan.gates["handling"]) > 0.9,
+        "static camera is not shake (no gyro)": mid(obj.gates["handling"]) > 0.9,
+        "shaky clip without telemetry penalised": mid(shaky.gates["handling"]) < 0.5,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -155,6 +187,7 @@ def main() -> int:
         f"no clip takes more than {cap} cuts": all(sum(p.clip is c for p in picks) <= cap for c in clips),
         ".MOV videos are picked up": any(p.name == "IMG_0001.MOV" for p in cli.find_videos(DATA)),
         "rotated clip analysed as portrait": rotated_portrait(),
+        **flow_checks(),
         **cli_outputs(),
     }
     for name, ok in checks.items():

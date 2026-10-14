@@ -55,10 +55,22 @@ analysis frames, upsampled to ~6 fps for flow only:
   tumble in the horizon angle. This is weaker evidence than free-fall, so it
   gives a soft gate, not the hard exclusion window.
 
-Folder-wide normalisation stays as it is, but **per source type**: GoPro
-footage and phone footage have different shake and sharpness baselines.
-Normalising a stabilised phone clip against GoPro p95 values would make it
-look calm when it isn't.
+**As built (`feat/optical-flow`):**
+- **Camera shake** uses absolute thresholds (`cam_shake_lo` 0.06 /
+  `cam_shake_hi` 0.20 frame-widths/s), not folder percentiles. It's measured
+  in the output image, so it's comparable across sources and needs no
+  per-source normalisation. Stabilised GoPro footage measured p95 0.05–0.10.
+  Shake in the image is visible by definition, so unlike gyro shake it isn't
+  cross-checked against blur.
+- **Subject motion** is computed, but **its interest weight is 0**. On the
+  real mangrove trip, the residual after removing camera motion was highest
+  on a boat ride (median 0.20) and lowest on people floating (0.10). It
+  measures depth parallax, water, and things fixed to the camera (the bow,
+  legs, a float). A similarity (zoom + rotation) camera model didn't change
+  that. Revisit once people detection exists (v0.7).
+- Subject-motion normalisation takes its percentiles only from moments
+  without visible shake, since flow is unreliable while the image jitters.
+- **Drops without an accelerometer** aren't built yet.
 
 ### Portrait video in a landscape reel
 
