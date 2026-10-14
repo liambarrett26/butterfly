@@ -59,7 +59,7 @@ def evaluate(clips: list, picks: list, labels: list[dict]) -> dict:
             s, e = max(float(it.get("start", 0.0)), 0.0), min(float(it.get("end", c.duration)), c.duration)
             lo, hi = int(s / C.DT), max(int(e / C.DT), int(s / C.DT) + 1)
             q, weight = c.q[lo:hi], (hi - lo) * C.DT
-            picked = sum(max(0.0, min(e, p.start + p.dur) - max(s, p.start)) for p in picks if p.clip is c)
+            picked = sum(max(0.0, min(e, p.start + p.src_dur) - max(s, p.start)) for p in picks if p.clip is c)
             where = f"{c.path.name} {s:.1f}–{e:.1f}s"
         where += f" ({it['note']})" if it.get("note") else ""
         gated = float((q < C.GATES["window_min_q"]).mean()) if len(q) else 0.0

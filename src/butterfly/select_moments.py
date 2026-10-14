@@ -22,6 +22,12 @@ class Pick:
     score: float
     reasons: str
     emb: np.ndarray | None = None
+    speed: float = 1.0                    # < 1 = slow motion: the slot (dur) is filled from dur × speed of source
+
+    @property
+    def src_dur(self) -> float:
+        """Seconds of source footage the cut uses (start .. start + src_dur)."""
+        return self.dur * self.speed
 
 
 # ------------------------------------------------------------------ cut plan
@@ -164,8 +170,24 @@ def refine(picks: list[Pick]) -> None:
         p.start = best_s
 
 
+def plan_slowmo(picks: list[Pick]) -> None:
+    """Slow down the best cuts from high-frame-rate clips: up to SLOWMO_MAX_CUTS picks from clips at
+    >= SLOWMO_MIN_FPS play at SLOWMO_SPEED, filling their slot from the best-scoring stretch of
+    dur × speed seconds inside their window."""
+    fast = [p for p in picks if p.clip.kind == "video" and p.clip.fps >= C.SLOWMO_MIN_FPS]
+    for p in sorted(fast, key=lambda p: -p.score)[:C.SLOWMO_MAX_CUTS]:
+        c, span = p.clip, p.dur * C.SLOWMO_SPEED
+        lo, hi, k = int(round(p.start / C.DT)), int(round((p.start + p.dur) / C.DT)), max(int(round(span / C.DT)), 1)
+        sc = c.score[lo:hi]
+        if len(sc) > k:
+            best = int(np.argmax(np.convolve(sc, np.ones(k), "valid")))
+            p.start = round((lo + best) * C.DT, 6)
+        p.speed = C.SLOWMO_SPEED
+        p.reasons += f", slow ×{C.SLOWMO_SPEED:g}"
+
+
 def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVERSITY,
-           photos: str = "auto") -> list[Pick]:
+           photos: str = "auto", slowmo: bool = True) -> list[Pick]:
     """MMR over video windows and photos in one pool -> picks in time order, with planned durations.
 
     photos: "auto" (photos fill at most MAX_PHOTO_SHARE of the cuts), "off", or "only".
@@ -225,4 +247,6 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
         p.dur = min(d, p.clip.duration)
         p.start = float(np.clip(centre - p.dur / 2, 0, p.clip.duration - p.dur))
     refine(chosen)
+    if slowmo:
+        plan_slowmo(chosen)
     return chosen

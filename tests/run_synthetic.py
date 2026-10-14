@@ -409,6 +409,37 @@ def inout_checks() -> dict:
     }
 
 
+def slowmo_checks() -> dict:
+    """A 120 fps clip: detected, slowed (only it), and rendered at its slot length from half the source."""
+    from butterfly.select_moments import plan_slowmo
+
+    fast = DATA / "fast120.mp4"
+    if not fast.exists():
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=120:duration=6",
+                        "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-c:v", "libx264", "-preset", "ultrafast",
+                        "-c:a", "aac", "-shortest", str(fast)], check=True)
+    c_fast = analyse.analyse_clip(fast, None, DATA / ".cache", "test", refresh=True, vision=False)
+    c_slow = analyse.analyse_clip(DATA / "GX010063.MP4", None, DATA / ".cache", "test", vision=False)
+    for c in (c_fast, c_slow):
+        c.q, c.score = np.ones(c.n), np.linspace(0, 1, c.n)        # later moments score higher
+    a, b = Pick(c_fast, 1.0, 2.0, 2.0, ""), Pick(c_slow, 1.0, 2.0, 1.0, "")
+    plan_slowmo([a, b])
+    out = DATA / "_slow.mp4"
+    with contextlib.redirect_stdout(io.StringIO()):
+        render([a], out, 1080, workers=1)
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                str(out)], capture_output=True, text=True, check=True).stdout)
+    moving = float(np.abs(_gray_frame(out, 0.2) - _gray_frame(out, 1.6)).mean()) > 1.0
+    out.unlink()
+    return {
+        "frame rate detected (120 fps)": abs(c_fast.fps - 120) < 1,
+        "only high-frame-rate cuts are slowed": a.speed == C.SLOWMO_SPEED and b.speed == 1.0,
+        "slow cut uses half the source, inside its window": abs(a.src_dur - 1.0) < 1e-6 and 1.0 <= a.start
+                                                            and a.start + a.src_dur <= 3.0 + 1e-6,
+        "slow cut renders at its slot length, not frozen": abs(dur - 2.0) < 0.1 and moving,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -443,6 +474,7 @@ def main() -> int:
         **photo_reel_checks(clips, photo_items),
         **dedupe_checks(),
         **inout_checks(),
+        **slowmo_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

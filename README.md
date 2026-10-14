@@ -175,6 +175,7 @@ faster than decoding 4K HEVC.
 | `--no-clip` | off | Classic CV only, no vision model |
 | `--no-vision` | off | Telemetry + audio only (fastest; no photos) |
 | `--photos` | auto | Photos in the reel: `auto` (up to a quarter of the cuts), `off`, or `only` (a photo reel) |
+| `--no-slowmo` | off | Never slow down high-frame-rate clips (by default the best 2 cuts from ≥ 100 fps clips play at half speed) |
 | `--clock-offset` | — | Correct a device's clock, e.g. `"iPhone 14 Plus=+01:00"` (repeatable; devices are listed in the report) |
 | `--clip-model` / `--clip-pretrained` | ViT-B-32 / laion2b | e.g. `MobileCLIP-S2` / `datacompdr` for speed |
 | `--refresh` | off | Ignore the analysis cache |
@@ -273,7 +274,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (52 / 52 checks
+Tested end-to-end on synthetic clips with injected telemetry (56 / 56 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -291,6 +292,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Slow motion (120 fps clip) | half speed from half the source, slot length kept, 30 fps untouched | ✓ |
 | Smart in/out points | a cut moves off a quality dip, onto a motion onset, never overlapping | ✓ |
 | Bursts, Live Photos, clocks, duplicates | burst → best shot; Live Photo `.MOV` not a clip; offset applied; photo of a picked video moment dropped | ✓ |
 
@@ -364,7 +366,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ### v0.6 — motion and timing
 - [x] Smart in/out points: shift cuts off shake and onto motion onsets
-- [ ] Slow motion for high-frame-rate clips (≥ 100 fps)
+- [x] Slow motion for high-frame-rate clips (≥ 100 fps)
 
 ### v0.7 — audio and people
 - [ ] Audio event tagging (laughter, cheering, splash; wind as a gate)
@@ -404,6 +406,9 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ### Unreleased
 
+- Slow motion: up to two of the reel's best cuts from clips shot at
+  ≥ 100 fps play at half speed. They fill the same slot from half as much
+  source, taken from the best-scoring stretch. `--no-slowmo` turns it off.
 - Smart in/out points: once a cut's length is final, it may move up to
   ±0.5 s, first to raise its lowest quality, then to start where activity
   rises (frame change, else loudness). It never overlaps another cut of the
