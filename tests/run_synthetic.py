@@ -32,7 +32,8 @@ from butterfly import cli  # noqa: E402
 from butterfly import config as C  # noqa: E402
 from butterfly import vision  # noqa: E402
 from butterfly.score import compute  # noqa: E402
-from butterfly.select_moments import plan_durations, select  # noqa: E402
+from butterfly.render import fit_graph, render  # noqa: E402
+from butterfly.select_moments import Pick, plan_durations, select  # noqa: E402
 
 DATA = Path(__file__).resolve().parent / ".synthetic"
 DUR = 30
@@ -159,6 +160,25 @@ def flow_checks() -> dict:
     }
 
 
+def render_fill() -> dict:
+    """Render a cut of the rotated (portrait) clip: 1920x1080, with a blurred fill, not black bars, at the sides."""
+    c = analyse.analyse_clip(DATA / "IMG_0001.MOV", None, DATA / ".cache", "test", vision=False)
+    out = DATA / "_fill.mp4"
+    with contextlib.redirect_stdout(io.StringIO()):
+        render([Pick(c, 0.5, 2.0, 1.0, "")], out, 1080, workers=1)
+    w, h = vision.display_size(out)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", "1", "-i", str(out), "-frames:v", "1",
+                          "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True, check=True).stdout
+    out.unlink()
+    g = np.frombuffer(raw, np.uint8).reshape(h, w)
+    sides = np.concatenate([g[:, : w // 10], g[:, -(w // 10):]], axis=1)
+    return {
+        "portrait clip renders at 1920x1080": (w, h) == (1920, 1080),
+        "portrait clip sides are filled, not black": float(sides.mean()) > 30,
+        "16:9 clips skip the fill": "gblur" not in fit_graph(1920, 1080, 3840, 2160),
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -188,6 +208,7 @@ def main() -> int:
         ".MOV videos are picked up": any(p.name == "IMG_0001.MOV" for p in cli.find_videos(DATA)),
         "rotated clip analysed as portrait": rotated_portrait(),
         **flow_checks(),
+        **render_fill(),
         **cli_outputs(),
     }
     for name, ok in checks.items():
