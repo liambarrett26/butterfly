@@ -98,6 +98,11 @@ GATES = {
     "window_min_q": 0.3,      # reject a candidate cut if any moment is below this
 }
 
+# ---------------------------------------------------------------- render
+FILL_ASPECT_TOL = 0.02   # items whose display aspect is off the reel's (16:9) by more than this fraction…
+FILL_BLUR = 4.0          # …sit on a blurred copy of themselves: gblur sigma (px) at 1/8 output resolution
+FILL_DIM = 0.7           # brightness multiplier for that blurred background, so the item stands out
+
 # ---------------------------------------------------------------- selection
 DIVERSITY = 0.3          # MMR weight on novelty (0 = pure score, 1 = pure variety)
 WINDOW_STRIDE = 0.5      # s between candidate window starts

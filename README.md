@@ -264,7 +264,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (21 / 21 checks
+Tested end-to-end on synthetic clips with injected telemetry (24 / 24 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -279,6 +279,7 @@ passing, also in CI):
 | CLI dry run | cache and report in `.butterfly/`, old `.reel_cache/` untouched | ✓ |
 | Phone-style `.MOV`, rotated 90° | picked up, analysed as portrait | ✓ |
 | No telemetry: handheld shake / smooth pan / static | shake penalised; pan and static not | ✓ |
+| Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
@@ -333,7 +334,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md)
 - [x] Optical flow: a vision-based camera-shake gate for footage without
   telemetry. Subject motion is measured too, but is off as interest for now:
   on real footage it mostly picks up parallax and water
-- [ ] Portrait clips in a landscape reel: a blurred fill instead of black bars
+- [x] Portrait clips in a landscape reel: a blurred fill instead of black bars
 - [ ] A labelled set of real clips (good / unusable / dull) from a mixed
   GoPro + phone folder, as a second test suite
 
@@ -386,6 +387,12 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Portrait and other non-16:9 clips now sit on a blurred, dimmed copy of
+  themselves instead of black bars (`FILL_*` in `config.py`). 16:9 clips
+  render exactly as before.
 
 - **0.3.0** (2026-10-14): Real-footage tuning, a proper package, and the
   first steps beyond GoPro.

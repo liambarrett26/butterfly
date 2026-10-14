@@ -28,7 +28,7 @@ def proxy_for(path: Path) -> Path | None:
     return None
 
 
-def _dims(path: Path) -> tuple[int, int]:
+def display_size(path: Path) -> tuple[int, int]:
     """Display (width, height): the stored size, swapped when the video is rotated by ±90°.
 
     ffmpeg auto-rotates when decoding, so frames come out at the display size.
@@ -46,7 +46,7 @@ def _dims(path: Path) -> tuple[int, int]:
 
 def iter_frames(path: Path, fps: float, width: int, batch: int):
     """Yield (times, frames uint8 [B,H,W,3]) batches, decoding with VideoToolbox on macOS."""
-    w0, h0 = _dims(path)
+    w0, h0 = display_size(path)
     h = max(2, int(round(width * h0 / w0 / 2)) * 2)
     cmd = ["ffmpeg", "-v", "error"]
     if platform.system() == "Darwin":
