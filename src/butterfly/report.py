@@ -86,6 +86,13 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
     for i, p in enumerate(picks, 1):
         img = out_dir / f"pick_{i:02d}.jpg"
         photo = p.clip.kind == "photo"
+        if p.clip.kind == "title":
+            from .days import title_image
+            title_image(p, (480, 270)).save(img, quality=85)
+            cards.append(f'<div class="card"><img src="{img.name}" alt=""><div class="b"><div class="t">#{i} · '
+                         f'{html.escape(p.clip.info["title"])} · {html.escape(p.clip.info["subtitle"])}</div>'
+                         f'<div class="muted">day title · {p.dur:.1f}s</div></div></div>')
+            continue
         src = img.name if (_photo_thumb(p.clip.path, img) if photo else _thumb(p, img)) else ""
         span = (f"photo · {p.dur:.1f}s" if photo else f"{p.start:.1f}–{p.start + p.src_dur:.1f}s"
                 + (f" · slow ×{p.speed:g}" if p.speed != 1 else ""))

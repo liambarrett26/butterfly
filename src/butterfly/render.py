@@ -66,9 +66,13 @@ def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_s
         audio_out = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
 
         def still(i, p, seg):
-            from .photos import open_photo
-            im, _ = open_photo(p.clip.path)                       # EXIF orientation applied; HEIC too
-            im.thumbnail((2 * w, 2 * h))
+            if p.clip.kind == "title":
+                from .days import title_image
+                im = title_image(p, (2 * w, 2 * h) if w <= 1920 else (w, h))
+            else:
+                from .photos import open_photo
+                im, _ = open_photo(p.clip.path)                   # EXIF orientation applied; HEIC too
+                im.thumbnail((2 * w, 2 * h))
             src = tmp / f"still_{i:03d}.png"
             im.save(src)
             d = f"{p.dur:.3f}"
@@ -76,13 +80,13 @@ def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_s
                   "-f", "lavfi", "-t", d, "-i", "anullsrc=r=48000:cl=stereo",
                   "-filter_complex", still_graph(w, h, *im.size, p.dur, zoom_in=i % 2 == 0),
                   "-map", "[vz]", "-map", "1:a:0", "-t", d] + enc + audio_out + [str(seg)])
-            print(f"  cut {i + 1}/{len(picks)}  {p.clip.path.name} (photo, {p.dur:.1f}s)")
+            print(f"  cut {i + 1}/{len(picks)}  {p.clip.path.name} ({p.clip.kind}, {p.dur:.1f}s)")
             return seg
 
         def cut(item):
             i, p = item
             seg, d = tmp / f"seg_{i:03d}.mp4", p.dur
-            if p.clip.kind == "photo":
+            if p.clip.kind in ("photo", "title"):
                 return still(i, p, seg)
             slow = p.speed != 1
             af = ((f"atempo={p.speed:g}," if slow else "")

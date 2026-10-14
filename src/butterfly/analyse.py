@@ -78,6 +78,17 @@ def probe(path: Path) -> tuple[float, datetime, bool, float, str]:
     return dur, created, has_audio, fps, device_of(info["format"].get("tags", {}), streams)
 
 
+def location_of(path: Path) -> tuple[float, float] | None:
+    """(lat, lon) from an ISO 6709 'location' tag (GoPro, phones), if the file has one."""
+    import re
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format_tags", "-of", "json", str(path)],
+                         capture_output=True, text=True).stdout
+    tags = {k.lower(): v for k, v in json.loads(out or "{}").get("format", {}).get("tags", {}).items()}
+    loc = tags.get("location") or tags.get("com.apple.quicktime.location.iso6709") or ""
+    m = re.match(r"([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)", loc)
+    return (float(m.group(1)), float(m.group(2))) if m else None
+
+
 def cache_path(path: Path, cache_dir: Path, tag: str) -> Path:
     """Full file name (so IMG_1.HEIC and IMG_1.MOV don't collide) + size + mtime + version + model tag."""
     st = path.stat()
