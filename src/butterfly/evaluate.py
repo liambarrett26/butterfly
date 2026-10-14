@@ -18,9 +18,8 @@ import sys
 from pathlib import Path
 
 from . import config as C
-from .cli import analyse_folder, find_videos, load_scorer
+from .cli import analyse_folder, find_videos, load_scorer, score_folder
 from .photos import find_photos
-from .score import compute
 from .select_moments import plan_durations, select
 
 LABELS = ("good", "unusable", "dull")
@@ -112,6 +111,7 @@ def main() -> None:
     ap.add_argument("--clip-model", default=C.CLIP_MODEL)
     ap.add_argument("--clip-pretrained", default=C.CLIP_PRETRAINED)
     ap.add_argument("--refresh", action="store_true")
+    ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM")
     ap.add_argument("--strict", action="store_true", help="exit 1 if there are violations")
     args = ap.parse_args()
 
@@ -125,7 +125,7 @@ def main() -> None:
                            find_photos(folder))
     if not clips:
         sys.exit("Nothing to work with.")
-    compute(clips)
+    score_folder(clips, args.clock_offset)
     picks = select(clips, plan_durations(args.length, args.seg, None, 0), args.diversity)
     result = evaluate(clips, picks, labels)
     print(f"\nLabels: {labels_path} ({len(labels)} entries) · reel {sum(p.dur for p in picks):.1f}s, {len(picks)} cuts")

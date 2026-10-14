@@ -18,7 +18,8 @@ from pathlib import Path
 
 from . import config as C
 from .analyse import analyse_clip
-from .photos import analyse_photo, assign_times, find_photos
+from .photos import (analyse_photo, apply_clock_offsets, assign_times, collapse_bursts, find_photos,
+                     live_photo_motion, parse_clock_offset)
 from .render import render
 from .report import write_report
 from .score import compute
@@ -49,8 +50,10 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
                    photos: list[Path] = ()) -> list:
     """Analyse (or load cached) videos and photos, printing one line per video;
     -> videos ≥ 1 s and photos, in shooting order. Photos need vision, so --no-vision skips them."""
+    live = live_photo_motion(files, photos) if vision else set()
+    files = [f for f in files if f not in live]
     print(f"Analysing {len(files)} clip(s)" + (f" and {len(photos)} photo(s)" if photos and vision else "")
-          + f" in {folder} ...")
+          + f" in {folder} ..." + (f" ({len(live)} Live Photo motion clip(s) kept with their photos)" if live else ""))
     clips = []
     for i, f in enumerate(files, 1):
         t0 = time.time()
@@ -78,6 +81,14 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
     return clips
 
 
+def score_folder(clips: list, clock_offsets: list[str] = ()) -> None:
+    """Clock corrections, time order, scoring, then burst collapsing (which needs the scores)."""
+    apply_clock_offsets(clips, dict(parse_clock_offset(s) for s in clock_offsets))
+    clips.sort(key=lambda c: (c.created, c.path.name))
+    compute(clips)
+    collapse_bursts([c for c in clips if c.kind == "photo"])
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="butterfly", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -93,6 +104,9 @@ def main() -> None:
     ap.add_argument("--no-clip", action="store_true", help="classic CV metrics only, no CLIP model")
     ap.add_argument("--photos", choices=["auto", "off", "only"], default="auto",
                     help="photos in the reel: auto (up to a quarter of the cuts), off, or only photos")
+    ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM",
+                    help="correct a device's clock, e.g. 'iPhone 14 Plus=+01:00' (repeatable; device names "
+                         "are listed in the report)")
     ap.add_argument("--clip-model", default=C.CLIP_MODEL)
     ap.add_argument("--clip-pretrained", default=C.CLIP_PRETRAINED)
     ap.add_argument("--refresh", action="store_true", help="ignore the analysis cache")
@@ -120,7 +134,10 @@ def main() -> None:
         sys.exit("Nothing to work with.")
 
     # ---------------------------------------------------------------- score + select
-    compute(clips)
+    try:
+        score_folder(clips, args.clock_offset)
+    except ValueError as e:
+        sys.exit(str(e))
     durations = plan_durations(args.length, args.seg, args.music, args.music_start)
     picks = select(clips, durations, args.diversity, args.photos)
 

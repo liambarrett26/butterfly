@@ -1,7 +1,7 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 7        # bump to invalidate cached analyses
+CACHE_VERSION = 8        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 PHOTO_EXTS = (".jpg", ".jpeg", ".png", ".heic", ".heif")  # photos picked up; HEIC needs the photos extra
 VIDEO_EXTS = (".mp4", ".mov", ".m4v")  # video files picked up (case-insensitive); GoPro .LRV are proxies, not clips
@@ -111,6 +111,11 @@ PHOTO = {
 }
 MAX_PHOTO_SHARE = 0.25   # at most this share of the reel's cuts are photos (owner decision); video leads
 PHOTO_SCORE_FACTOR = 0.8 # photo score × this competes with video window scores (photos are normalised separately)
+BURST_GAP_S = 3.0        # photos at most this far apart (s)…
+BURST_SIM = 0.9          # …whose 32×24 grey signatures correlate at least this much are one burst: keep the best
+DEDUPE_S = 2.0           # a photo within this many seconds of a picked video window…
+DEDUPE_SIM = 0.9         # …and this CLIP-similar to it shows the same moment: the video wins (needs CLIP)
+LIVE_PHOTO_MAX_S = 4.0   # a .MOV this short with the same name as a photo is a Live Photo's motion, not a clip
 PHOTO_ZOOM = 0.08        # Ken Burns: zoom 1.00 → 1 + this over a photo's slot (direction alternates)
 
 # ---------------------------------------------------------------- render

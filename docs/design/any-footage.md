@@ -210,6 +210,17 @@ option could use its 1.5 s of motion in place of the Ken Burns move.
 - Picks are ordered by **moment** (the clip's start time + offset, or the
   photo's time).
 
+- **Bursts** use a 32×24 grey signature per photo (correlation ≥ 0.9, ≤ 3 s
+  apart), not CLIP embeddings, so they collapse without CLIP too.
+  **Photo-vs-video duplicates** need CLIP (±2 s, similarity ≥ 0.9). When a
+  video window duplicates an already chosen photo, the video replaces it.
+- **Clocks:** rather than guessing which device is wrong, the report shows a
+  **Devices** table (count and UTC time span per device), and the user fixes
+  one with `--clock-offset "DEVICE=±HH:MM"`. Devices come from EXIF make/model
+  (photos), and QuickTime model tags or GoPro handler names (videos).
+- **Live Photos:** a `.MOV` of 4 s or less (`LIVE_PHOTO_MAX_S`) with the same
+  stem as a photo isn't analysed as a clip.
+
 ### Report
 
 - Photo picks appear in the picks grid with a "photo" badge and their "why".

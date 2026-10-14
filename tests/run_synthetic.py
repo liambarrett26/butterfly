@@ -309,6 +309,78 @@ def photo_reel_checks(videos, photos) -> dict:
 
 
 
+def dedupe_checks() -> dict:
+    """Bursts, Live Photo pairing, clock offsets, photo-vs-video duplicates, device detection."""
+    from datetime import datetime, timedelta
+
+    from PIL import Image
+
+    from butterfly.analyse import Clip, device_of
+    from butterfly.photos import apply_clock_offsets, live_photo_motion, parse_clock_offset
+    from butterfly.select_moments import same_moment
+
+    # bursts: three near-identical shots a second apart, then a different shot
+    burst = DATA / "bursts"
+    burst.mkdir(exist_ok=True)
+    base = np.random.default_rng(7).integers(0, 256, (54, 80, 3), dtype=np.uint8)
+    other = np.random.default_rng(8).integers(0, 256, (54, 80, 3), dtype=np.uint8)
+    for k, (arr, sec) in enumerate([(base, 0), (base, 1), (base, 2), (other, 3)]):
+        noisy = np.clip(arr.astype(int) + np.random.default_rng(20 + k).integers(-6, 7, arr.shape), 0, 255)
+        exif = Image.Exif()
+        exif.get_ifd(0x8769)[0x9003] = f"2026:10:10 12:00:0{sec}"
+        exif.get_ifd(0x8769)[0x9011] = "+02:00"
+        Image.fromarray(noisy.astype(np.uint8)).resize((640, 432), Image.NEAREST).save(
+            burst / f"shot_{k}.jpg", exif=exif, quality=92)
+    with contextlib.redirect_stdout(io.StringIO()):
+        shots = cli.analyse_folder(burst, [], None, "test", True, True, find_photos(burst))
+    cli.score_folder(shots)
+    marked = {c.path.name: c.info.get("burst_of") for c in shots}
+    kept = [n for n in ("shot_0.jpg", "shot_1.jpg", "shot_2.jpg") if not marked[n]]
+
+    # Live Photo: IMG_9000.jpg + a 2 s IMG_9000.MOV is one photo; a 6 s IMG_9001.MOV with a photo stays a clip
+    live = DATA / "live"
+    live.mkdir(exist_ok=True)
+    for name, dur in (("IMG_9000", 2), ("IMG_9001", 6)):
+        Image.fromarray(base).save(live / f"{name}.jpg")
+        if not (live / f"{name}.MOV").exists():
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"testsrc2=size=320x240:rate=30:duration={dur}",
+                            "-c:v", "libx264", "-preset", "ultrafast", str(live / f"{name}.MOV")], check=True)
+    motion = live_photo_motion(cli.find_videos(live), find_photos(live))
+
+    # clock offsets
+    dev, off = parse_clock_offset("TestCam=+01:30")
+    c = Clip(Path("x.jpg"), 0.0, datetime(2026, 10, 10, 12), False, 0.0, kind="photo", info={"device": "TestCam"})
+    apply_clock_offsets([c], {dev: off})
+    try:
+        parse_clock_offset("TestCam=soon")
+        bad_rejected = False
+    except ValueError:
+        bad_rejected = True
+
+    # a photo vs a video window: same moment and look -> duplicate; different look or time -> not
+    e1 = np.ones(4, np.float32) / 2
+    e2 = np.array([1, -1, 1, -1], np.float32) / 2
+    t = datetime(2026, 10, 10, 12)
+    vid = Clip(Path("v.mp4"), 30.0, t - timedelta(seconds=10), True, 30.0)
+    ph = lambda when: Clip(Path("p.jpg"), 0.0, when, False, 0.0, kind="photo")
+    window = Pick(vid, 9.0, 2.5, 1.0, "", e1)
+    dup = same_moment(Pick(ph(t), 0.0, 2.5, 1.0, "", e1), window)
+    diff_look = same_moment(Pick(ph(t), 0.0, 2.5, 1.0, "", e2), window)
+    diff_time = same_moment(Pick(ph(t + timedelta(seconds=30)), 0.0, 2.5, 1.0, "", e1), window)
+
+    return {
+        "burst of 3 collapses to its best shot": len(kept) == 1 and float(
+            next(x for x in shots if x.path.name == kept[0]).score[0]) == max(
+            float(x.score[0]) for x in shots if x.path.name != "shot_3.jpg"),
+        "a different shot is not part of the burst": not marked["shot_3.jpg"],
+        "Live Photo motion (short .MOV, same name) is not a clip": motion == {live / "IMG_9000.MOV"},
+        "clock offset corrects that device's times": c.created == datetime(2026, 10, 10, 13, 30) and bad_rejected,
+        "photo of a picked video moment is a duplicate": dup and not diff_look and not diff_time,
+        "device from QuickTime model / GoPro handler": device_of({"com.apple.quicktime.model": "iPhone 14 Plus"}, [])
+            == "iPhone 14 Plus" and device_of({}, [{"tags": {"handler_name": "GoPro H.265"}}]) == "GoPro",
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -341,6 +413,7 @@ def main() -> int:
         **label_checks(clips, picks),
         **photo_results,
         **photo_reel_checks(clips, photo_items),
+        **dedupe_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),
