@@ -1,0 +1,60 @@
+name: Roadmap item
+description: One item from the README roadmap. One item = one issue = one branch = one PR.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      options:
+        - v0.2.x — repository setup
+        - v0.3 — real-footage validation
+        - v0.4 — motion understanding
+        - v0.5 — audio and people
+        - v0.6 — structure
+        - v0.7 — personalisation
+        - Later
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+      description: The roadmap line this covers, and what problem it solves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Concrete, checkable conditions. Include the new test for any new gate or signal.
+      placeholder: |
+        - a synthetic moving object on a static background outscores a global pan, with a test
+        - `python tests/run_synthetic.py` passes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: branch
+    attributes:
+      label: Branch type
+      options:
+        - feat/
+        - fix/
+        - tune/ (thresholds, weights or prompts only)
+        - refactor/
+        - docs/
+        - chore/ (tooling, CI, packaging)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Expected impact
+      options:
+        - label: Changes which moments get picked (the PR needs a before/after on a real folder)
+        - label: Changes what the analysis computes or stores (bump `CACHE_VERSION`)
+        - label: Adds a dependency (pin it exactly in `pyproject.toml`; keep heavy ones optional)

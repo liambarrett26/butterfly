@@ -1,0 +1,72 @@
+name: Bug report
+description: Something went wrong, or Butterfly picked footage it shouldn't have.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Please don't attach footage.** Butterfly is built to keep
+        your clips private. Describe the clip and time range instead, and paste text output.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What went wrong, and what you expected instead.
+      placeholder: |
+        A 2 s cut of the camera falling onto the sand was picked (GX010073, 12.0–14.5 s).
+        Expected that window to be gated out as a drop.
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran, with flags.
+      render: shell
+      placeholder: butterfly ~/Movies/GoPro --dry-run
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Console output
+      description: The full output, including the reel plan table or the traceback.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: report
+    attributes:
+      label: What the HTML report shows
+      description: |
+        For a bad pick: its "why" text and what the clip's timeline shows around it
+        (score, quality, drops). The report is at `<folder>/.butterfly/report/index.html`.
+
+  - type: input
+    id: camera
+    attributes:
+      label: Camera and firmware
+      placeholder: HERO13 Black, H24.01.02.10.00
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Butterfly version or commit
+      description: "`python -c \"import butterfly; print(butterfly.__version__)\"` or `git rev-parse --short HEAD`"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS and chip, Python version, ffmpeg version, and whether CLIP was used.
+      placeholder: macOS 26 on M3 Pro, Python 3.12.15, ffmpeg 8.0.1, CLIP ViT-B-32
+    validations:
+      required: true
