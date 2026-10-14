@@ -359,6 +359,10 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 ### Later
 - [ ] Multi-camera: align two cameras by time or GPS and cut between angles
 - [ ] Vertical (9:16) reels
+- [ ] Music by default: your own song or set of songs (`--music FILE|DIR`), or
+  a bundled library of free tracks chosen by vibe. A download script and
+  manifest are tracked in git; the tracks themselves aren't. Low priority:
+  which tracks to bundle is still to be explored
 
 ## Known limitations
 
@@ -396,7 +400,9 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   replacing "other action cameras".
 - Roadmap reordered: v0.4 is now "any video" (`.MOV`, rotation, optical-flow
   shake gate, portrait fill), and v0.5 is photos, with a design in
-  `docs/design/any-footage.md`. The later milestones move up by two.
+  `docs/design/any-footage.md`. The later milestones move up by two. Music
+  becomes on by default (later): the user's own song or set, or bundled free
+  tracks chosen by vibe.
 - Removed HiLight tag support (the `hilight` interest part, its settings, and
   the report markers). Butterfly is fully automatic and shouldn't depend on
   a GoPro-only feature. `CACHE_VERSION` is now 4, so the first run

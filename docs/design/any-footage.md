@@ -1,7 +1,7 @@
 # Design: footage from any source, and photos in the reel
 
 Status: **approved by the owner (2026-10-14)**, with the decisions recorded under
-"Decisions" at the end. The one open item is where default music comes from.
+"Decisions" at the end.
 Tracks issue #14 (any source) and the v0.4 / v0.5 roadmap milestones.
 
 Butterfly started as a GoPro tool. A holiday folder is usually a mix: GoPro
@@ -216,16 +216,16 @@ reel.
 
 ## Open questions for the owner
 
-Answered on 2026-10-14; see "Decisions" below. The one item still open is
-the default music source.
+Answered on 2026-10-14; see "Decisions" below.
 
 ## Decisions (owner, 2026-10-14)
 
 1. **Photo share:** `MAX_PHOTO_SHARE = 0.25` of the cuts.
 2. **Motion:** a gentle Ken Burns zoom on every photo by default.
 3. **Music:** on by default, and optional. Reels get music unless the user
-   turns it off; photos sit under the music. **Open:** where the default
-   track comes from when no `--music` is given (see below).
+   turns it off; photos sit under the music. The source is decided (see
+   "Music source" below): the user's own song or set if they name one,
+   otherwise bundled free tracks chosen by vibe.
 4. **HEIC:** `pillow-heif` as a pinned optional `photos` extra.
 5. **Vertical reels:** later, not in v0.5.
 6. **Test material:** the owner's labelled examples are in
@@ -238,21 +238,26 @@ the default music source.
    usable. More material (phone video, a burst, a Live Photo) is still
    wanted.
 
-### Open: default music source
+### Music source (decided 2026-10-14; low priority)
 
-"Music by default" needs a track when the user doesn't pass `--music`. The
-options, all local:
+A mix of options (a) and (b):
 
-- **(a) A music folder** (recommended): `~/Music/Butterfly/` by default,
-  configurable. Butterfly picks the track whose length and tempo best fit the
-  reel, and rotates between runs. No licensing or repo-size issues, and the
-  user controls the taste. With no folder or no tracks, the reel is made
-  without music, with one console line saying how to add some.
-- **(b) Bundled tracks:** a few royalty-free tracks shipped in the repo. This
-  works out of the box, but needs licences that allow redistribution, adds
-  megabytes to the repo, and gives everyone the same few songs.
-- **(c) Generated music:** a simple on-device beat or ambient bed. This
-  avoids licensing, but quality is a risk, and it's a project in itself.
+- **A specific song or set of songs:** the user names it, and Butterfly uses
+  it. `--music FILE` works as now; `--music DIR` (new) treats a folder as a
+  set and picks the track whose length and tempo best fit the reel.
+- **Just a vibe:** Butterfly uses a **bundled library of free tracks**, chosen
+  with `--vibe NAME` (e.g. `chill`, `upbeat`), or a default vibe when nothing
+  is given.
+  - The tracks are **not committed**. A tracked script downloads them, with a
+    tracked manifest listing URL, licence, checksum and vibe tags, into a
+    local, git-ignored folder. Only the script and manifest live in git.
+  - Every track must have a licence that allows use in personal videos. The
+    manifest records it, and the script verifies checksums.
+  - Downloading is the only network access, it happens on request (like
+    model weights on first use), and nothing is ever uploaded.
+- **Turning music off:** `--no-music` gives no music; photos then get
+  silence with short crossfades (see above).
+- **No tracks downloaded yet:** the reel is made without music, with one
+  console line saying how to fetch the library.
 
-`--no-music` turns music off. `--music FILE` keeps its current meaning.
-
+Which tracks to bundle, and the vibe names, are to be explored later.
