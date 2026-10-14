@@ -104,6 +104,7 @@ def main() -> None:
     ap.add_argument("--no-clip", action="store_true", help="classic CV metrics only, no CLIP model")
     ap.add_argument("--photos", choices=["auto", "off", "only"], default="auto",
                     help="photos in the reel: auto (up to a quarter of the cuts), off, or only photos")
+    ap.add_argument("--no-slowmo", action="store_true", help="never slow down high-frame-rate clips")
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM",
                     help="correct a device's clock, e.g. 'iPhone 14 Plus=+01:00' (repeatable; device names "
                          "are listed in the report)")
@@ -139,13 +140,13 @@ def main() -> None:
     except ValueError as e:
         sys.exit(str(e))
     durations = plan_durations(args.length, args.seg, args.music, args.music_start)
-    picks = select(clips, durations, args.diversity, args.photos)
+    picks = select(clips, durations, args.diversity, args.photos, not args.no_slowmo)
 
     total = sum(p.dur for p in picks)
     print(f"\nReel plan: {len(picks)} cuts, {total:.1f}s")
     print(f"  {'#':>2}  {'clip':<14} {'in':>7} {'out':>7}  {'score':>5}  why")
     for i, p in enumerate(picks, 1):
-        span = f"{'photo':>7} {p.dur:6.1f}s" if p.clip.kind == "photo" else f"{p.start:7.1f} {p.start + p.dur:7.1f}"
+        span = f"{'photo':>7} {p.dur:6.1f}s" if p.clip.kind == "photo" else f"{p.start:7.1f} {p.start + p.src_dur:7.1f}"
         print(f"  {i:>2}  {p.clip.path.name:<14} {span}  {p.score:5.2f}  {p.reasons}")
     if total < args.length - 0.5:
         print("  (shorter than requested: not enough usable footage)")

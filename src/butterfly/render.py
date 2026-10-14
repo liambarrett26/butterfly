@@ -25,18 +25,19 @@ def _encoder(res: int) -> list[str]:
     return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"]
 
 
-def fit_graph(w: int, h: int, src_w: int, src_h: int) -> str:
+def fit_graph(w: int, h: int, src_w: int, src_h: int, pre: str = "") -> str:
     """filter_complex fitting input 0's video into w×h as [v].
 
     Matching aspect: plain scale (letterbox only for rounding). Otherwise the item sits,
     whole, on a blurred and dimmed copy of itself that fills the frame, instead of black bars.
     """
     tail = "setsar=1,fps=30000/1001,format=yuv420p[v]"
+    src = f"[0:v]{pre}," if pre else "[0:v]"                   # e.g. setpts for slow motion
     if abs((src_w / src_h) / (w / h) - 1) <= C.FILL_ASPECT_TOL:
-        return (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=decrease,"
+        return (f"{src}scale={w}:{h}:force_original_aspect_ratio=decrease,"
                 f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,{tail}")
     bw, bh = w // 8 // 2 * 2, h // 8 // 2 * 2                  # blur at low resolution: cheap
-    return (f"[0:v]split=2[bg][fg];"
+    return (f"{src}split=2[bg][fg];"
             f"[bg]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},"
             f"gblur=sigma={C.FILL_BLUR},lutyuv=y=val*{C.FILL_DIM},scale={w}:{h}[bgb];"
             f"[fg]scale={w}:{h}:force_original_aspect_ratio=decrease[fgs];"
@@ -83,17 +84,20 @@ def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_s
             seg, d = tmp / f"seg_{i:03d}.mp4", p.dur
             if p.clip.kind == "photo":
                 return still(i, p, seg)
-            af = f"afade=t=in:d=0.05,afade=t=out:st={max(d - 0.05, 0):.3f}:d=0.05"
-            cmd = ["ffmpeg", "-y", "-v", "error", "-ss", f"{p.start:.3f}", "-t", f"{d:.3f}",
+            slow = p.speed != 1
+            af = ((f"atempo={p.speed:g}," if slow else "")
+                  + f"afade=t=in:d=0.05,afade=t=out:st={max(d - 0.05, 0):.3f}:d=0.05")
+            cmd = ["ffmpeg", "-y", "-v", "error", "-ss", f"{p.start:.3f}", "-t", f"{p.src_dur:.3f}",
                    "-i", str(p.clip.path)]
             if p.clip.has_audio:
                 amap = ["-map", "[v]", "-map", "0:a:0"]
             else:
                 cmd += ["-f", "lavfi", "-t", f"{d:.3f}", "-i", "anullsrc=r=48000:cl=stereo"]
                 amap = ["-map", "[v]", "-map", "1:a:0"]
-            graph = fit_graph(w, h, *display_size(p.clip.path))
-            _run(cmd + ["-filter_complex", graph] + amap + ["-af", af] + enc + audio_out + [str(seg)])
-            print(f"  cut {i + 1}/{len(picks)}  {p.clip.path.name} {p.start:.1f}–{p.start + d:.1f}s")
+            graph = fit_graph(w, h, *display_size(p.clip.path), pre=f"setpts=PTS/{p.speed:g}" if slow else "")
+            _run(cmd + ["-filter_complex", graph] + amap + ["-af", af, "-t", f"{d:.3f}"] + enc + audio_out + [str(seg)])
+            print(f"  cut {i + 1}/{len(picks)}  {p.clip.path.name} {p.start:.1f}–{p.start + p.src_dur:.1f}s"
+                  + (f" (slow ×{p.speed:g})" if slow else ""))
             return seg
 
         with ThreadPoolExecutor(max_workers=workers) as ex:

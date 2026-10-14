@@ -13,7 +13,7 @@ from .score import unusable_fraction, why
 
 
 def _thumb(p, out: Path) -> bool:
-    t = p.start + p.dur / 2
+    t = p.start + p.src_dur / 2
     r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{t:.2f}", "-i", str(p.clip.path),
                         "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", str(out)],
                        capture_output=True)
@@ -46,7 +46,7 @@ def _timeline(c, picks, out: Path) -> None:
         ax.axvspan(s, e, color="#d64545", alpha=0.6)
     for p in picks:
         if p.clip is c:
-            ax.axvspan(p.start, p.start + p.dur, color="#2e9e5b", alpha=0.25)
+            ax.axvspan(p.start, p.start + p.src_dur, color="#2e9e5b", alpha=0.25)
     ax.set_xlim(0, max(c.duration, 1))
     ax.set_ylim(0, top * 1.05)
     ax.set_xlabel("seconds")
@@ -84,7 +84,8 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
         img = out_dir / f"pick_{i:02d}.jpg"
         photo = p.clip.kind == "photo"
         src = img.name if (_photo_thumb(p.clip.path, img) if photo else _thumb(p, img)) else ""
-        span = f"photo · {p.dur:.1f}s" if photo else f"{p.start:.1f}–{p.start + p.dur:.1f}s"
+        span = (f"photo · {p.dur:.1f}s" if photo else f"{p.start:.1f}–{p.start + p.src_dur:.1f}s"
+                + (f" · slow ×{p.speed:g}" if p.speed != 1 else ""))
         cards.append(
             f'<div class="card"><img src="{src}" alt=""><div class="b">'
             f'<div class="t">#{i} · {html.escape(p.clip.path.name)} · {span}</div>'
