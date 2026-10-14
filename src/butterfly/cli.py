@@ -19,6 +19,7 @@ from pathlib import Path
 from . import config as C
 from .analyse import analyse_clip
 from .audio_events import load_tagger
+from .days import group_by_day, local_offsets, select_with_titles
 from .people import load_people
 from .photos import (analyse_photo, apply_clock_offsets, assign_times, collapse_bursts, find_photos,
                      live_photo_motion, parse_clock_offset)
@@ -110,6 +111,10 @@ def main() -> None:
     ap.add_argument("--no-audio-events", action="store_true",
                     help="skip laughter / cheering / splash / wind tagging (needs the audio extra anyway)")
     ap.add_argument("--no-faces", action="store_true", help="skip face and people detection (Apple Vision, macOS)")
+    ap.add_argument("--days", choices=["off", "split", "titles"], default="off",
+                    help="multi-day folders: split = one reel per day; titles = one trip reel with a title card per day")
+    ap.add_argument("--tz", metavar="±HH:MM", help="the trip's UTC offset for --days (default: from photos, GPS, "
+                                                  "or this computer)")
     ap.add_argument("--no-slowmo", action="store_true", help="never slow down high-frame-rate clips")
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM",
                     help="correct a device's clock, e.g. 'iPhone 14 Plus=+01:00' (repeatable; device names "
@@ -149,29 +154,56 @@ def main() -> None:
     except ValueError as e:
         sys.exit(str(e))
     durations = plan_durations(args.length, args.seg, args.music, args.music_start)
-    picks = select(clips, durations, args.diversity, args.photos, not args.no_slowmo)
+    opts = dict(diversity=args.diversity, photos=args.photos, slowmo=not args.no_slowmo)
+    reels: list[tuple[str, Path, list]] = []                  # (heading, output file, picks)
+    if args.days == "off":
+        reels.append(("Reel plan", out, select(clips, durations, **opts)))
+    else:
+        try:
+            offsets, how = local_offsets(clips, args.tz)
+        except ValueError as e:
+            sys.exit(str(e))
+        days = group_by_day(clips, offsets)
+        print(f"\n{len(days)} day(s); local time {how}")
+        if args.days == "titles":
+            reels.append(("Trip reel plan", out, select_with_titles(clips, durations, offsets, **opts)))
+        else:
+            for d, items in days.items():
+                mode = args.photos if any(c.kind == "video" for c in items) or args.photos == "off" else "only"
+                reels.append((f"Reel plan for {d:%a %-d %b %Y}", out.with_name(f"{out.stem}_{d.isoformat()}{out.suffix}"),
+                              select(items, durations, args.diversity, mode, not args.no_slowmo)))
 
-    total = sum(p.dur for p in picks)
-    print(f"\nReel plan: {len(picks)} cuts, {total:.1f}s")
-    print(f"  {'#':>2}  {'clip':<14} {'in':>7} {'out':>7}  {'score':>5}  why")
-    for i, p in enumerate(picks, 1):
-        span = f"{'photo':>7} {p.dur:6.1f}s" if p.clip.kind == "photo" else f"{p.start:7.1f} {p.start + p.src_dur:7.1f}"
-        print(f"  {i:>2}  {p.clip.path.name:<14} {span}  {p.score:5.2f}  {p.reasons}")
-    if total < args.length - 0.5:
-        print("  (shorter than requested: not enough usable footage)")
+    for heading, _, picks in reels:
+        print_plan(heading, picks, args.length)
 
     if not args.no_report:
         settings = (f"{'no vision' if args.no_vision else ('CLIP ' + args.clip_model if scorer else 'classic CV')}"
-                    f", diversity {args.diversity}, {args.seg}s cuts, photos {args.photos}"
+                    f", diversity {args.diversity}, {args.seg}s cuts, photos {args.photos}, days {args.days}"
                     + (f", music {args.music.name}" if args.music else ""))
-        index = write_report(clips, picks, folder, work / "report", settings)
+        index = write_report(clips, [p for _, _, ps in reels for p in ps], folder, work / "report", settings)
         print(f"\nReport: {index}")
 
-    if args.dry_run or not picks:
+    if args.dry_run:
         return
-    print(f"\nRendering {args.res}p ...")
-    render(picks, out, args.res, args.music, args.music_start, args.clip_audio, args.workers)
-    print(f"\nDone: {out}")
+    for _, path, picks in reels:
+        if picks:
+            print(f"\nRendering {args.res}p -> {path.name} ...")
+            render(picks, path, args.res, args.music, args.music_start, args.clip_audio, args.workers)
+            print(f"Done: {path}")
+
+
+def print_plan(heading: str, picks: list, length: float) -> None:
+    total = sum(p.dur for p in picks)
+    print(f"\n{heading}: {len(picks)} cuts, {total:.1f}s")
+    print(f"  {'#':>2}  {'clip':<14} {'in':>7} {'out':>7}  {'score':>5}  why")
+    for i, p in enumerate(picks, 1):
+        if p.clip.kind == "title":
+            print(f"  {i:>2}  {p.clip.info['title'] + ' · ' + p.clip.info['subtitle']:<30} {'title':>7} {p.dur:5.1f}s")
+            continue
+        span = f"{'photo':>7} {p.dur:6.1f}s" if p.clip.kind == "photo" else f"{p.start:7.1f} {p.start + p.src_dur:7.1f}"
+        print(f"  {i:>2}  {p.clip.path.name:<14} {span}  {p.score:5.2f}  {p.reasons}")
+    if total < length - 0.5:
+        print("  (shorter than requested: not enough usable footage)")
 
 
 if __name__ == "__main__":

@@ -182,6 +182,8 @@ faster than decoding 4K HEVC.
 | `--photos` | auto | Photos in the reel: `auto` (up to a quarter of the cuts), `off`, or `only` (a photo reel) |
 | `--no-audio-events` | off | Skip laughter / cheering / splash / wind tagging (it needs the `audio` extra anyway) |
 | `--no-faces` | off | Skip face and people detection (Apple Vision, macOS) |
+| `--days` | off | Multi-day folders: `split` = one reel per day (`highlights_YYYY-MM-DD.mp4`); `titles` = one trip reel with a "Day N" title card opening each day |
+| `--tz` | — | The trip's UTC offset for `--days`, e.g. `-05:00` (default: each item's EXIF offset or GPS, else the folder's usual offset) |
 | `--no-slowmo` | off | Never slow down high-frame-rate clips (by default the best 2 cuts from ≥ 100 fps clips play at half speed) |
 | `--clock-offset` | — | Correct a device's clock, e.g. `"iPhone 14 Plus=+01:00"` (repeatable; devices are listed in the report) |
 | `--clip-model` / `--clip-pretrained` | ViT-B-32 / laion2b | e.g. `MobileCLIP-S2` / `datacompdr` for speed |
@@ -281,7 +283,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (64 / 64 checks
+Tested end-to-end on synthetic clips with injected telemetry (70 / 70 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -299,6 +301,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Multi-day (2–3 synthetic days) | local day by time zone; titles open each day; length kept; per-day reels; photo-only days | ✓ |
 | Shots (scene change at 10 s) | two shots; one pick per shot; relaxed to fill the reel | ✓ |
 | Faces (simulated detector) | a face in view raises interest there only | ✓ |
 | Audio events (simulated tagger) | laughter raises interest there only; wind gates at most ×0.7 | ✓ |
@@ -384,7 +387,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ### v0.8 — structure
 - [x] Shot segmentation from embedding change points, at most one pick per shot
-- [ ] Multi-day folders: one reel per day, or a trip reel with day titles
+- [x] Multi-day folders: one reel per day, or a trip reel with day titles
 
 ### v0.9 — personalisation
 - [ ] Thumbs up/down on picks in the HTML report, saved to a labels file
@@ -413,6 +416,15 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Multi-day folders: `--days split` makes one reel per day; `--days titles`
+  makes one trip reel where a title card ("Day 4 · Sat 21 Feb 2026", over a
+  blurred frame of that day's first cut) opens each day. Days share the cuts
+  in proportion to their usable footage, with at least one each. Each item's
+  local day comes from its own EXIF offset or its GPS longitude (`--tz`
+  overrides). Day numbers count calendar days, so gaps show.
 
 ### Unreleased
 

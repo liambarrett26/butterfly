@@ -521,6 +521,63 @@ def shot_checks() -> dict:
     }
 
 
+def day_checks() -> dict:
+    """Local days, a trip reel with day titles, per-day reels, and a rendered title card."""
+    from datetime import date, datetime, timedelta
+
+    from butterfly.analyse import Clip
+    from butterfly.days import day_of, group_by_day, local_offsets, select_with_titles
+
+    def clip(name, when):
+        c = Clip(Path(name), 20.0, when, True, 30.0)
+        c.q, c.score = np.ones(c.n), np.ones(c.n)
+        c.parts, c.gates = {"x": c.score}, {"q": c.q}
+        return c
+
+    d1 = [clip("d1a.mp4", datetime(2026, 2, 18, 15)), clip("d1b.mp4", datetime(2026, 2, 18, 16))]
+    d2 = [clip("d2a.mp4", datetime(2026, 2, 19, 23, 30))]            # 23:30 UTC = next day at UTC+2
+    allc = d1 + d2
+    plus2, _ = local_offsets(allc, "+02:00")
+    utc = {id(c): timedelta(0) for c in allc}
+    try:
+        local_offsets(allc, "two hours")
+        bad_tz = False
+    except ValueError:
+        bad_tz = True
+    durations = plan_durations(15, 2.5, None, 0)                       # 6 slots
+    reel = select_with_titles(allc, durations, utc)
+    kinds = [p.clip.kind for p in reel]
+    days = group_by_day(allc, utc)
+    per_day = {d: select(items, durations) for d, items in days.items()}
+
+    snap = Clip(Path("snap.jpg"), 0.0, datetime(2026, 2, 21, 12), False, 0.0, kind="photo")
+    snap.q, snap.score = np.ones(1), np.ones(1)
+    snap.parts, snap.gates = {"x": snap.score}, {"q": snap.q}
+    with_photo_day = select_with_titles(allc + [snap], plan_durations(20, 2.5, None, 0),
+                                        {**utc, id(snap): timedelta(0)})
+    after = [p.clip for p in with_photo_day[[p.clip.info.get("title") for p in with_photo_day].index("Day 4") + 1:]]
+    photo_day_ok = after == [snap]
+
+    title = next(p for p in reel if p.clip.kind == "title")
+    out = DATA / "_title.mp4"
+    with contextlib.redirect_stdout(io.StringIO()):
+        render([title], out, 1080, workers=1)
+    w, h = vision.display_size(out)
+    g = _gray_frame(out, 0.5)
+    out.unlink()
+    return {
+        "days: the time zone decides the local day": day_of(d2[0], plus2) == date(2026, 2, 20) and bad_tz,
+        "days: trip reel opens each day with a title": kinds[0] == "title" and kinds.count("title") == 2
+            and reel[kinds.index("title", 1)].clip.info["title"] == "Day 2"
+            and all(day_of(p.clip, utc) == date(2026, 2, 19) for p in reel[kinds.index("title", 1) + 1:]),
+        "days: titles keep the planned length": abs(sum(p.dur for p in reel) - 15) < 0.1,
+        "days: split mode keeps each day's cuts to that day": len(per_day) == 2 and all(
+            all(p.clip in items for p in per_day[d]) for d, items in days.items()),
+        "days: a title card renders (1920x1080, text)": (w, h) == (1920, 1080) and g.max() > 200 and g.mean() < 80,
+        "days: a photo-only day gets its photos, not just a title": photo_day_ok,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -559,6 +616,7 @@ def main() -> int:
         **audio_event_checks(),
         **people_checks(),
         **shot_checks(),
+        **day_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

@@ -146,6 +146,8 @@ SLOWMO_MIN_FPS = 100     # clips shot at this frame rate or faster can play slow
 SLOWMO_SPEED = 0.5       # …at this speed (0.5 = half; atempo needs >= 0.5)…
 SLOWMO_MAX_CUTS = 2      # …for at most this many of the reel's best cuts
 
+TITLE_DIM = 0.45         # day title cards: brightness of the blurred background frame
+
 # ---------------------------------------------------------------- render
 FILL_ASPECT_TOL = 0.02   # items whose display aspect is off the reel's (16:9) by more than this fraction…
 FILL_BLUR = 4.0          # …sit on a blurred copy of themselves: gblur sigma (px) at 1/8 output resolution
