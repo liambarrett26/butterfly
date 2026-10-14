@@ -14,7 +14,7 @@ are planned.
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.7).** The pipeline runs end-to-end, passes
+> **Status: early development (v0.8).** The pipeline runs end-to-end, passes
 > its synthetic test suite, and has been tuned with CLIP on one real GoPro
 > trip. Phone video is supported, but not yet tested on real phone footage.
 > See [Project status](#project-status).
@@ -385,7 +385,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Audio event tagging (laughter, cheering, splash; wind as a gate)
 - [x] Faces and people via Apple Vision, on-device
 
-### v0.8 — structure
+### v0.8 — structure ✅
 - [x] Shot segmentation from embedding change points, at most one pick per shot
 - [x] Multi-day folders: one reel per day, or a trip reel with day titles
 
@@ -417,24 +417,22 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Multi-day folders: `--days split` makes one reel per day; `--days titles`
-  makes one trip reel where a title card ("Day 4 · Sat 21 Feb 2026", over a
-  blurred frame of that day's first cut) opens each day. Days share the cuts
-  in proportion to their usable footage, with at least one each. Each item's
-  local day comes from its own EXIF offset or its GPS longitude (`--tz`
-  overrides). Day numbers count calendar days, so gaps show.
-
-### Unreleased
-
-- Shot segmentation: clips are split into shots where the CLIP embedding
-  changes sharply (novelty between the 2 s before and after ≥ 0.12, shots
-  ≥ 3 s). The reel takes at most one cut per shot, relaxed only if it can't
-  otherwise be filled. Report timelines show the boundaries. On the real
-  trip, long takes are sampled across their scenes, and good labelled moments
-  picked rose from 5/10 to 6/10, with 0 violations.
-
+- **0.8.0** (2026-10-14): Structure.
+  - Multi-day folders: `--days split` makes one reel per day; `--days titles`
+    makes one trip reel where a title card ("Day 4 · Sat 21 Feb 2026", over a
+    blurred frame of that day's first cut) opens each day. Days share the cuts
+    in proportion to their usable footage, with at least one each. Each item's
+    local day comes from its own EXIF offset or its GPS longitude (`--tz`
+    overrides). Day numbers count calendar days, so gaps show.
+  
+  ### Unreleased
+  
+  - Shot segmentation: clips are split into shots where the CLIP embedding
+    changes sharply (novelty between the 2 s before and after ≥ 0.12, shots
+    ≥ 3 s). The reel takes at most one cut per shot, relaxed only if it can't
+    otherwise be filled. Report timelines show the boundaries. On the real
+    trip, long takes are sampled across their scenes, and good labelled moments
+    picked rose from 5/10 to 6/10, with 0 violations.
 - **0.7.0** (2026-10-14): Audio and people.
   - Faces and people (optional `people` extra, macOS): Apple's Vision framework
     detects faces and human bodies on-device, on the analysis frames and
