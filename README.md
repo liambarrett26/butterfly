@@ -184,6 +184,10 @@ Everything tunable lives in **`src/butterfly/config.py`**:
   raise `shake_ride_speed` or lower `shake_penalty`.
 - **Interest weights** (`INTEREST_WEIGHTS`) balance vision, action, audio and
   HiLights.
+- **Spread across clips** (`PICKS_PER_CLIP_SLACK`): how many cuts one clip may
+  take beyond an even share. Raise it if your best clip deserves more of the
+  reel. On a trip where everything looks alike (all turquoise water, say),
+  this does more than `DIVERSITY`, because CLIP sees every shot as similar.
 
 The HTML report shows a thumbnail and a "why" for every pick, plus a timeline
 per clip with score, quality, drops and HiLights. It's the main tool for
@@ -255,7 +259,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (14 / 14 checks
+Tested end-to-end on synthetic clips with injected telemetry (15 / 15 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -272,12 +276,19 @@ passing, also in CI):
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
 
+CLIP with real weights (ViT-B-32, laion2b) was run on one real HERO13 trip:
+8 clips, about 5 minutes of floating and boating through mangroves. After
+tuning, all 12 picks are usable and the reel draws on 6 of the 8 clips.
+Before tuning, it picked murky underwater footage and took 4 cuts each from
+two clips.
+
 ### Not yet verified
 
-- CLIP with real weights. The vision code path has only been run with random
-  weights, so the mechanics work but the scores are untested.
-- The full pipeline on real HERO13 footage, and gate thresholds against real
-  drops and handling.
+- Trips that look different from that one: snow, cities, biking. The tuning
+  so far is based on a single water-heavy trip.
+- Gate thresholds against real drops; that trip had none.
+- Close-up selfies: CLIP rates them barely above scenery, so they rarely make
+  the reel. Face detection (v0.5) is the planned fix.
 - The HERO13 HiLight tag layout when tags are present.
 
 ## Roadmap
@@ -305,7 +316,7 @@ files with a separate probe script.
 - [x] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
 
 ### v0.3 — real-footage validation
-- [ ] Dry-run with real CLIP weights on a real trip; tune `GATES` and prompts
+- [x] Dry-run with real CLIP weights on a real trip; tune `GATES` and prompts
 - [ ] Confirm the HERO13 HiLight layout with a tagged clip; remove the "unverified" note
 - [ ] A small labelled set of real clips (good / drop / handling) as a second test suite
 
@@ -363,6 +374,12 @@ files with a separate probe script.
   and `<folder>/.butterfly/report/`. The reel stays at
   `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
 - Issue templates (bug report, roadmap item) and a pull request template.
+- Tuned on a real trip with CLIP. New prompts reward people floating and
+  selfies; a new "murky underwater view" prompt marks cloudy underwater
+  footage as unusable; the aesthetic baseline is now "a boring, badly framed
+  photo of nothing in particular". A clip may take at most one cut beyond its
+  even share of the reel (new `PICKS_PER_CLIP_SLACK`, previously a fixed 2).
+  `CACHE_VERSION` is now 3, so the first run re-analyses.
 
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned

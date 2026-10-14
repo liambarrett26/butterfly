@@ -91,7 +91,7 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
     if not pool:
         return []
     n_seg = len(durations)
-    cap = max(2, math.ceil(n_seg / max(len(clips), 1)) + 2)
+    cap = max(2, math.ceil(n_seg / max(len(clips), 1)) + C.PICKS_PER_CLIP_SLACK)
     top = max(p.score for p in pool) or 1.0
 
     chosen: list[Pick] = []

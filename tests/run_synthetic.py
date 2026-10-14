@@ -20,6 +20,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import math
+
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +29,7 @@ sys.path.insert(0, str(ROOT / "src"))  # works with or without `pip install -e .
 
 from butterfly import analyse  # noqa: E402
 from butterfly import cli  # noqa: E402
+from butterfly import config as C  # noqa: E402
 from butterfly.score import compute  # noqa: E402
 from butterfly.select_moments import plan_durations, select  # noqa: E402
 
@@ -116,7 +119,9 @@ def main() -> int:
              for n in ("GX010061.MP4", "GX010062.MP4", "GX010063.MP4")]
     compute(clips)
     c1, c2, _ = clips
-    picks = select(clips, plan_durations(12, 2.5, None, 0))
+    durations = plan_durations(12, 2.5, None, 0)
+    picks = select(clips, durations)
+    cap = math.ceil(len(durations) / len(clips)) + C.PICKS_PER_CLIP_SLACK
 
     checks = {
         "drop detected": len(c1.events["drops"]) == 1,
@@ -132,6 +137,7 @@ def main() -> int:
         "no pick in the handling section": all(   # 0.2 s tolerance at the region edge
             not (p.clip is c2 and p.start < 7.8 and p.start + p.dur > 2.2) for p in picks),
         "riding moment picked": any(p.clip is c1 and 5 <= p.start + p.dur / 2 <= 15 for p in picks),
+        f"no clip takes more than {cap} cuts": all(sum(p.clip is c for p in picks) <= cap for c in clips),
         **cli_outputs(),
     }
     for name, ok in checks.items():
