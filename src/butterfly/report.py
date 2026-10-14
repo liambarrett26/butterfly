@@ -81,10 +81,12 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
     cards = []
     for i, p in enumerate(picks, 1):
         img = out_dir / f"pick_{i:02d}.jpg"
-        src = img.name if _thumb(p, img) else ""
+        photo = p.clip.kind == "photo"
+        src = img.name if (_photo_thumb(p.clip.path, img) if photo else _thumb(p, img)) else ""
+        span = f"photo · {p.dur:.1f}s" if photo else f"{p.start:.1f}–{p.start + p.dur:.1f}s"
         cards.append(
             f'<div class="card"><img src="{src}" alt=""><div class="b">'
-            f'<div class="t">#{i} · {html.escape(p.clip.path.name)} · {p.start:.1f}–{p.start + p.dur:.1f}s</div>'
+            f'<div class="t">#{i} · {html.escape(p.clip.path.name)} · {span}</div>'
             f'<div class="muted">score {p.score:.2f}</div><div>{html.escape(p.reasons)}</div></div></div>')
 
     photo_cards = []
@@ -118,7 +120,7 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
 
     total = sum(p.dur for p in picks)
     photos_html = (f'<h2>Photos</h2><div class="muted" style="margin-bottom:10px">Best first. '
-                   f'Faded = gated (blurred, dark, blown or unusable). Photos join the reel in a later version.</div>'
+                   f'Faded = gated (blurred, dark, blown or unusable). Usable photos compete with video for up to a quarter of the cuts.</div>'
                    f'<div class="grid">{"".join(photo_cards)}</div>') if photo_cards else ""
     page = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Highlight report</title>

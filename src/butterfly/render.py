@@ -43,6 +43,17 @@ def fit_graph(w: int, h: int, src_w: int, src_h: int) -> str:
             f"[bgb][fgs]overlay=(W-w)/2:(H-h)/2,{tail}")
 
 
+def still_graph(w: int, h: int, src_w: int, src_h: int, dur: float, zoom_in: bool) -> str:
+    """filter_complex for a photo slot -> [vz]: fit (blurred fill if needed) at 2× size, then a
+    gentle Ken Burns zoom (PHOTO_ZOOM) down to w×h. Supersampling avoids zoompan's jitter."""
+    k = 2 if w <= 1920 else 1
+    frames = max(int(round(dur * 30000 / 1001)), 1)
+    z0, z1 = (1.0, 1 + C.PHOTO_ZOOM) if zoom_in else (1 + C.PHOTO_ZOOM, 1.0)
+    return (fit_graph(k * w, k * h, src_w, src_h)
+            + f";[v]zoompan=z='{z0}+({z1 - z0:.4f})*on/{frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+              f":d=1:s={w}x{h}:fps=30000/1001,setsar=1,format=yuv420p[vz]")
+
+
 def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_start: float = 0.0,
            clip_audio: float = 0.25, workers: int = 4) -> None:
     w, h = (3840, 2160) if res >= 2160 else (1920, 1080)
@@ -51,9 +62,27 @@ def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_s
     with tempfile.TemporaryDirectory(prefix="butterfly_") as tmp:
         tmp = Path(tmp)
 
+        audio_out = ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
+
+        def still(i, p, seg):
+            from .photos import open_photo
+            im, _ = open_photo(p.clip.path)                       # EXIF orientation applied; HEIC too
+            im.thumbnail((2 * w, 2 * h))
+            src = tmp / f"still_{i:03d}.png"
+            im.save(src)
+            d = f"{p.dur:.3f}"
+            _run(["ffmpeg", "-y", "-v", "error", "-loop", "1", "-framerate", "30000/1001", "-t", d, "-i", str(src),
+                  "-f", "lavfi", "-t", d, "-i", "anullsrc=r=48000:cl=stereo",
+                  "-filter_complex", still_graph(w, h, *im.size, p.dur, zoom_in=i % 2 == 0),
+                  "-map", "[vz]", "-map", "1:a:0", "-t", d] + enc + audio_out + [str(seg)])
+            print(f"  cut {i + 1}/{len(picks)}  {p.clip.path.name} (photo, {p.dur:.1f}s)")
+            return seg
+
         def cut(item):
             i, p = item
             seg, d = tmp / f"seg_{i:03d}.mp4", p.dur
+            if p.clip.kind == "photo":
+                return still(i, p, seg)
             af = f"afade=t=in:d=0.05,afade=t=out:st={max(d - 0.05, 0):.3f}:d=0.05"
             cmd = ["ffmpeg", "-y", "-v", "error", "-ss", f"{p.start:.3f}", "-t", f"{d:.3f}",
                    "-i", str(p.clip.path)]
@@ -63,8 +92,7 @@ def render(picks, out: Path, res: int = 1080, music: Path | None = None, music_s
                 cmd += ["-f", "lavfi", "-t", f"{d:.3f}", "-i", "anullsrc=r=48000:cl=stereo"]
                 amap = ["-map", "[v]", "-map", "1:a:0"]
             graph = fit_graph(w, h, *display_size(p.clip.path))
-            _run(cmd + ["-filter_complex", graph] + amap + ["-af", af] + enc +
-                 ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(seg)])
+            _run(cmd + ["-filter_complex", graph] + amap + ["-af", af] + enc + audio_out + [str(seg)])
             print(f"  cut {i + 1}/{len(picks)}  {p.clip.path.name} {p.start:.1f}–{p.start + d:.1f}s")
             return seg
 

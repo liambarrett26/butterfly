@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -85,23 +86,51 @@ def candidates(c: Clip, L: float) -> list[Pick]:
 
 # ------------------------------------------------------------------ selection
 
-def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVERSITY) -> list[Pick]:
+def photo_candidate(c: Clip, L: float) -> Pick | None:
+    """A usable photo as one candidate cut (start 0, a slot of length L); None if it is gated."""
+    if float(c.q[0]) < C.GATES["window_min_q"]:
+        return None
+    emb = None
+    if c.emb is not None and len(c.emb):
+        emb = c.emb[0].astype(np.float32)
+        emb /= np.linalg.norm(emb) + 1e-9
+    return Pick(c, 0.0, L, float(c.score[0]) * C.PHOTO_SCORE_FACTOR, why(c, 0, 1), emb)
+
+
+def moment(p: Pick) -> datetime:
+    """When the picked moment happened (UTC): the clip's start time plus the cut's offset."""
+    return p.clip.created + timedelta(seconds=p.start)
+
+
+def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVERSITY,
+           photos: str = "auto") -> list[Pick]:
+    """MMR over video windows and photos in one pool -> picks in time order, with planned durations.
+
+    photos: "auto" (photos fill at most MAX_PHOTO_SHARE of the cuts), "off", or "only".
+    """
     L = float(np.median(durations))
-    clips = [c for c in clips if c.kind == "video"]          # photos join selection in v0.5 step 2
-    pool = [p for c in clips for p in candidates(c, L)]
+    n_seg = len(durations)
+    videos = [] if photos == "only" else [c for c in clips if c.kind == "video"]
+    stills = [] if photos == "off" else [c for c in clips if c.kind == "photo"]
+    pool = [p for c in videos for p in candidates(c, L)]
+    pool += [p for p in (photo_candidate(c, L) for c in stills) if p is not None]
     if not pool:
         return []
-    n_seg = len(durations)
-    cap = max(2, math.ceil(n_seg / max(len(clips), 1)) + C.PICKS_PER_CLIP_SLACK)
+    cap = max(2, math.ceil(n_seg / max(len(videos), 1)) + C.PICKS_PER_CLIP_SLACK)   # per video clip
+    max_photos = n_seg if photos == "only" else int(C.MAX_PHOTO_SHARE * n_seg)
     top = max(p.score for p in pool) or 1.0
 
     chosen: list[Pick] = []
     per_clip: dict[Path, int] = {}
+    n_photos = 0
     remaining = list(pool)
     while remaining and len(chosen) < n_seg:
         best, best_val = None, -np.inf
         for p in remaining:
-            if per_clip.get(p.clip.path, 0) >= cap:
+            if p.clip.kind == "photo":
+                if n_photos >= max_photos:
+                    continue
+            elif per_clip.get(p.clip.path, 0) >= cap:
                 continue
             red = 0.0
             if p.emb is not None:
@@ -113,11 +142,15 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
         if best is None:
             break
         chosen.append(best)
+        n_photos += best.clip.kind == "photo"
         per_clip[best.clip.path] = per_clip.get(best.clip.path, 0) + 1
         remaining.remove(best)
 
-    chosen.sort(key=lambda p: (p.clip.created, p.clip.path.name, p.start))
+    chosen.sort(key=lambda p: (moment(p), p.clip.path.name))
     for p, d in zip(chosen, durations):
+        if p.clip.kind == "photo":
+            p.dur = d
+            continue
         centre = p.start + p.dur / 2
         p.dur = min(d, p.clip.duration)
         p.start = float(np.clip(centre - p.dur / 2, 0, p.clip.duration - p.dur))

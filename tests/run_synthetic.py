@@ -240,7 +240,7 @@ def make_photos() -> None:
         Image.fromarray((np.asarray(texture(6)) * 0.08).astype(np.uint8)).save(PHOTOS / "photo_dark.jpg", quality=92)
 
 
-def photo_checks() -> dict:
+def photo_checks() -> tuple[dict, list]:
     from datetime import datetime
 
     make_photos()
@@ -261,7 +261,52 @@ def photo_checks() -> dict:
         "EXIF time + offset -> UTC": ph["photo_a.jpg"].created == datetime(2026, 10, 10, 10, 35, 26),
         "file-name time takes the folder's offset": ph["IMG_20261010_140000.jpg"].created == datetime(2026, 10, 10, 12, 0, 0),
         "labels: photo rows, no violations": "good photos" in r["rows"] and not r["violations"],
+    }, items
+
+
+def _gray_frame(path: Path, t: float) -> np.ndarray:
+    w, h = vision.display_size(path)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t}", "-i", str(path), "-frames:v", "1",
+                          "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.uint8).reshape(h, w).astype(float)
+
+
+def photo_reel_checks(videos, photos) -> dict:
+    """Photos in selection (share cap, gating, modes, time order) and a rendered photo slot."""
+    from butterfly.select_moments import moment
+
+    allc = videos + photos
+    compute(allc)
+    durations = plan_durations(12, 2.5, None, 0)                       # 5 cuts -> at most 1 photo
+    auto = select(allc, durations)
+    only = select(allc, durations, photos="only")
+    off = select(allc, durations, photos="off")
+    in_auto = [p.clip.path.name for p in auto if p.clip.kind == "photo"]
+    usable = [c for c in photos if float(c.q[0]) >= C.GATES["window_min_q"]]
+
+    portrait = next(c for c in photos if c.path.name == "photo_a.jpg")
+    out = DATA / "_photo_slot.mp4"
+    with contextlib.redirect_stdout(io.StringIO()):
+        render([Pick(portrait, 0.0, 2.0, 1.0, "")], out, 1080, workers=1)
+    w, h = vision.display_size(out)
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                str(out)], capture_output=True, text=True, check=True).stdout)
+    first, last = _gray_frame(out, 0.05), _gray_frame(out, 1.9)
+    out.unlink()
+    sides = np.concatenate([first[:, : w // 10], first[:, -(w // 10):]], axis=1)
+    return {
+        "photos join the reel, within the 25% share": len(in_auto) == int(C.MAX_PHOTO_SHARE * len(durations)) >= 1,
+        "gated photos are never picked": not {"photo_blurred.jpg", "photo_dark.jpg"} & set(
+            p.clip.path.name for p in auto + only),
+        "--photos only: a photo reel of the usable photos": len(only) == min(len(usable), len(durations))
+                                                            and all(p.clip.kind == "photo" for p in only),
+        "--photos off: no photos": all(p.clip.kind == "video" for p in off),
+        "picks are in time order": all(moment(a) <= moment(b) for a, b in zip(auto, auto[1:])),
+        "photo slot renders 1920x1080 at its planned length": (w, h) == (1920, 1080) and abs(dur - 2.0) < 0.1,
+        "photo slot zooms (Ken Burns)": float(np.abs(first - last).mean()) > 2.0,
+        "portrait photo has a blurred fill, not black bars": float(sides.mean()) > 30,
     }
+
 
 
 def main() -> int:
@@ -275,6 +320,7 @@ def main() -> int:
     picks = select(clips, durations)
     cap = math.ceil(len(durations) / len(clips)) + C.PICKS_PER_CLIP_SLACK
 
+    photo_results, photo_items = photo_checks()
     checks = {
         "drop detected": len(c1.events["drops"]) == 1,
         "drop window unusable (q < 0.05)": region_q(c1, 23.5, 26) < 0.05,
@@ -293,8 +339,8 @@ def main() -> int:
         ".MOV videos are picked up": any(p.name == "IMG_0001.MOV" for p in cli.find_videos(DATA)),
         "rotated clip analysed as portrait": rotated_portrait(),
         **label_checks(clips, picks),
-        **photo_checks(),
-        "photos stay out of the reel (for now)": all(p.clip.kind == "video" for p in picks),
+        **photo_results,
+        **photo_reel_checks(clips, photo_items),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

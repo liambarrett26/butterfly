@@ -192,6 +192,24 @@ option could use its 1.5 s of motion in place of the Ken Burns move.
   format as video segments (same resolution, fps, pixel format, and a silent
   AAC track), so the existing concat and music mix work unchanged.
 
+### As built (v0.5 step 2)
+
+- **Duration:** a photo takes **one cut slot**, like a video window: `--seg`
+  without music, a beat group with music. There's no separate
+  `--photo-seconds`; one rule for both modes keeps the beat plan intact.
+- **Framing:** any photo more than 2% off 16:9 (3:2, 4:3, portrait) gets the
+  blurred fill (`render.fit_graph`), not a small centre crop. Nothing is cut
+  off, and the look matches portrait video.
+- **Ken Burns:** `render.still_graph` runs the fill at 2× and then
+  `zoompan` 1.00 → 1.08 (or back), alternating between photos (1× at 4K, to
+  keep it affordable).
+- **Selection:** a photo candidate scores `score × PHOTO_SCORE_FACTOR`
+  (0.8). On a mixed folder (8 GoPro clips + the owner's 6 example photos), the
+  two best photos took 2 of 12 cuts (cap 3), and both blurred photos stayed
+  out.
+- Picks are ordered by **moment** (the clip's start time + offset, or the
+  photo's time).
+
 ### Report
 
 - Photo picks appear in the picks grid with a "photo" badge and their "why".
