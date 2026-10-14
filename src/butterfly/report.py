@@ -8,8 +8,8 @@ from pathlib import Path
 
 import numpy as np
 
-import config as C
-from score import unusable_fraction
+from . import config as C
+from .score import unusable_fraction
 
 
 def _thumb(p, out: Path) -> bool:

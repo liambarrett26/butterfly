@@ -8,9 +8,9 @@ from pathlib import Path
 
 import numpy as np
 
-import config as C
-from analyse import Clip
-from score import why
+from . import config as C
+from .analyse import Clip
+from .score import why
 
 
 @dataclass

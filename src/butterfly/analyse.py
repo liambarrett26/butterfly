@@ -10,10 +10,10 @@ from pathlib import Path
 
 import numpy as np
 
-import config as C
-from gpmf import load_telemetry, read_hilights
-from signals import audio_features, telemetry_features
-from vision import analyse_vision
+from . import config as C
+from .gpmf import load_telemetry, read_hilights
+from .signals import audio_features, telemetry_features
+from .vision import analyse_vision
 
 
 @dataclass

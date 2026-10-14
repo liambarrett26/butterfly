@@ -20,11 +20,11 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))  # works with or without `pip install -e .`
 
-import analyse  # noqa: E402
-from score import compute  # noqa: E402
-from select_moments import plan_durations, select  # noqa: E402
+from butterfly import analyse  # noqa: E402
+from butterfly.score import compute  # noqa: E402
+from butterfly.select_moments import plan_durations, select  # noqa: E402
 
 DATA = Path(__file__).resolve().parent / ".synthetic"
 DUR = 30
