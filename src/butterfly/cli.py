@@ -18,6 +18,7 @@ from pathlib import Path
 
 from . import config as C
 from .analyse import analyse_clip
+from .audio_events import load_tagger
 from .photos import (analyse_photo, apply_clock_offsets, assign_times, collapse_bursts, find_photos,
                      live_photo_motion, parse_clock_offset)
 from .render import render
@@ -47,7 +48,7 @@ def load_scorer(no_vision: bool, no_clip: bool, model: str, pretrained: str):
 
 
 def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: bool, vision: bool,
-                   photos: list[Path] = ()) -> list:
+                   photos: list[Path] = (), tagger=None) -> list:
     """Analyse (or load cached) videos and photos, printing one line per video;
     -> videos ≥ 1 s and photos, in shooting order. Photos need vision, so --no-vision skips them."""
     live = live_photo_motion(files, photos) if vision else set()
@@ -57,7 +58,7 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
     clips = []
     for i, f in enumerate(files, 1):
         t0 = time.time()
-        c = analyse_clip(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh, vision=vision)
+        c = analyse_clip(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh, vision=vision, tagger=tagger)
         if c.duration < 1.0:
             continue
         clips.append(c)
@@ -104,6 +105,8 @@ def main() -> None:
     ap.add_argument("--no-clip", action="store_true", help="classic CV metrics only, no CLIP model")
     ap.add_argument("--photos", choices=["auto", "off", "only"], default="auto",
                     help="photos in the reel: auto (up to a quarter of the cuts), off, or only photos")
+    ap.add_argument("--no-audio-events", action="store_true",
+                    help="skip laughter / cheering / splash / wind tagging (needs the audio extra anyway)")
     ap.add_argument("--no-slowmo", action="store_true", help="never slow down high-frame-rate clips")
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM",
                     help="correct a device's clock, e.g. 'iPhone 14 Plus=+01:00' (repeatable; device names "
@@ -130,7 +133,8 @@ def main() -> None:
     work = folder / C.OUTPUT_DIR  # cache/ and report/; an old .reel_cache/ is left alone
 
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
-    clips = analyse_folder(folder, files, scorer, tag, args.refresh, not args.no_vision, photos)
+    tagger, suffix = load_tagger(not (args.no_vision or args.no_audio_events))
+    clips = analyse_folder(folder, files, scorer, tag + suffix, args.refresh, not args.no_vision, photos, tagger)
     if not clips:
         sys.exit("Nothing to work with.")
 

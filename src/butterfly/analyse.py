@@ -85,7 +85,7 @@ def cache_path(path: Path, cache_dir: Path, tag: str) -> Path:
 
 
 def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = False,
-                 vision: bool = True) -> Clip:
+                 vision: bool = True, tagger=None) -> Clip:
     dur, created, has_audio, fps, device = probe(path)
     clip = Clip(path, dur, created, has_audio, fps, info={"device": device})
     cache = cache_path(path, cache_dir, tag)
@@ -106,6 +106,8 @@ def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = 
     feats, events = telemetry_features(tel, n)
     if has_audio:
         feats.update(audio_features(path, n))
+        if tagger is not None:
+            feats.update(tagger.tag(path, n))
 
     vis = analyse_vision(path, scorer) if vision else {}
     if vis:
