@@ -85,7 +85,7 @@ def cache_path(path: Path, cache_dir: Path, tag: str) -> Path:
 
 
 def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = False,
-                 vision: bool = True, tagger=None) -> Clip:
+                 vision: bool = True, tagger=None, people=None) -> Clip:
     dur, created, has_audio, fps, device = probe(path)
     clip = Clip(path, dur, created, has_audio, fps, info={"device": device})
     cache = cache_path(path, cache_dir, tag)
@@ -109,7 +109,7 @@ def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = 
         if tagger is not None:
             feats.update(tagger.tag(path, n))
 
-    vis = analyse_vision(path, scorer) if vision else {}
+    vis = analyse_vision(path, scorer, people) if vision else {}
     if vis:
         grid = np.arange(n) * C.DT
         for k, v in vis.items():

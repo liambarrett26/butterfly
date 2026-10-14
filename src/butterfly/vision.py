@@ -185,7 +185,7 @@ class ClipScorer:
 
 # ------------------------------------------------------------------ per clip
 
-def analyse_vision(path: Path, scorer: ClipScorer | None) -> dict:
+def analyse_vision(path: Path, scorer: ClipScorer | None, people=None) -> dict:
     """One decode at FLOW_FPS: optical flow on every frame, metrics and CLIP on every k-th (VISION_FPS).
 
     -> {'t': times, metric: array, 'embedding': [N, D], 'flow_t': times, 'camera_shake', 'subject_motion'}
@@ -203,6 +203,8 @@ def analyse_vision(path: Path, scorer: ClipScorer | None) -> dict:
         m["t"] = times[keep]
         if scorer is not None:
             m.update(scorer.score(frames[keep]))
+        if people is not None:
+            m.update(people.detect(frames[keep]))
         parts.append(m)
     if not parts:
         return {}

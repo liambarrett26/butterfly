@@ -19,6 +19,7 @@ from pathlib import Path
 from . import config as C
 from .analyse import analyse_clip
 from .audio_events import load_tagger
+from .people import load_people
 from .photos import (analyse_photo, apply_clock_offsets, assign_times, collapse_bursts, find_photos,
                      live_photo_motion, parse_clock_offset)
 from .render import render
@@ -48,7 +49,7 @@ def load_scorer(no_vision: bool, no_clip: bool, model: str, pretrained: str):
 
 
 def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: bool, vision: bool,
-                   photos: list[Path] = (), tagger=None) -> list:
+                   photos: list[Path] = (), tagger=None, people=None) -> list:
     """Analyse (or load cached) videos and photos, printing one line per video;
     -> videos ≥ 1 s and photos, in shooting order. Photos need vision, so --no-vision skips them."""
     live = live_photo_motion(files, photos) if vision else set()
@@ -58,7 +59,8 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
     clips = []
     for i, f in enumerate(files, 1):
         t0 = time.time()
-        c = analyse_clip(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh, vision=vision, tagger=tagger)
+        c = analyse_clip(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh, vision=vision, tagger=tagger,
+                         people=people)
         if c.duration < 1.0:
             continue
         clips.append(c)
@@ -69,7 +71,7 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
     stills, skipped = [], []
     for f in (photos if vision else []):
         try:
-            stills.append(analyse_photo(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh))
+            stills.append(analyse_photo(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh, people))
         except Exception as e:  # unreadable file, or HEIC without the photos extra
             skipped.append(f"{f.name} ({e})")
     if stills:
@@ -107,6 +109,7 @@ def main() -> None:
                     help="photos in the reel: auto (up to a quarter of the cuts), off, or only photos")
     ap.add_argument("--no-audio-events", action="store_true",
                     help="skip laughter / cheering / splash / wind tagging (needs the audio extra anyway)")
+    ap.add_argument("--no-faces", action="store_true", help="skip face and people detection (Apple Vision, macOS)")
     ap.add_argument("--no-slowmo", action="store_true", help="never slow down high-frame-rate clips")
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM",
                     help="correct a device's clock, e.g. 'iPhone 14 Plus=+01:00' (repeatable; device names "
@@ -134,7 +137,9 @@ def main() -> None:
 
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
     tagger, suffix = load_tagger(not (args.no_vision or args.no_audio_events))
-    clips = analyse_folder(folder, files, scorer, tag + suffix, args.refresh, not args.no_vision, photos, tagger)
+    people, psuffix = load_people(not (args.no_vision or args.no_faces))
+    clips = analyse_folder(folder, files, scorer, tag + suffix + psuffix, args.refresh, not args.no_vision, photos,
+                           tagger, people)
     if not clips:
         sys.exit("Nothing to work with.")
 

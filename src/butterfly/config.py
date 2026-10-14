@@ -1,7 +1,7 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 9        # bump to invalidate cached analyses
+CACHE_VERSION = 10        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 PHOTO_EXTS = (".jpg", ".jpeg", ".png", ".heic", ".heif")  # photos picked up; HEIC needs the photos extra
 VIDEO_EXTS = (".mp4", ".mov", ".m4v")  # video files picked up (case-insensitive); GoPro .LRV are proxies, not clips
@@ -68,7 +68,8 @@ AUDIO_EVENTS = {         # feature ev_<group> = max probability over these Audio
     "wind": ["Wind", "Wind noise (microphone)"],
     "speech": ["Speech"],
 }
-EVENT_LO, EVENT_HI = 0.1, 0.5   # event probability where interest starts / is full (absolute: events are rare)
+EVENT_LO, EVENT_HI = 0.1, 0.5
+FACE_LO, FACE_HI = 0.002, 0.03  # largest face as a share of the frame: a selfie face is ~0.05   # event probability where interest starts / is full (absolute: events are rare)
 
 # ---------------------------------------------------------------- interest weights
 INTEREST_WEIGHTS = {
@@ -81,6 +82,8 @@ INTEREST_WEIGHTS = {
     "cheering": 0.8,
     "splash": 0.6,
     "speech": 0.0,       # measured, off: see the v0.7 PR for the evaluation
+    "faces": 0.8,        # largest face's area, ramped FACE_LO..FACE_HI (Apple Vision, optional)
+    "people": 0.3,       # people in view (faces or bodies), 1 person = 1/3 … 3+ = full
     # Subject motion (optical flow left after removing camera motion) is computed and cached, but
     # off: on real footage it mostly measures parallax, water and things fixed to the camera (a
     # boat's bow, legs), so it rewarded a boat ride over people floating. Revisit with v0.7 people detection.

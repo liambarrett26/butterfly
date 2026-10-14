@@ -467,6 +467,33 @@ def audio_event_checks() -> dict:
     }
 
 
+class FakePeople:
+    """Stands in for Apple Vision: a selfie-sized face (5% of the frame) between 10 and 14 s."""
+
+    def __init__(self):
+        self.i = 0
+
+    def detect(self, frames) -> dict:
+        t = (self.i + np.arange(len(frames))) / 2.0                 # vision frames arrive at 2 fps
+        self.i += len(frames)
+        on = (t >= 10) & (t < 14)
+        return {"face_area": np.where(on, 0.05, 0.0), "n_people": np.where(on, 1.0, 0.0)}
+
+
+def people_checks() -> dict:
+    c = analyse.analyse_clip(DATA / "GX010063.MP4", None, DATA / ".cache", "test+fakepeople", refresh=True,
+                             people=FakePeople())
+    plain = analyse.analyse_clip(DATA / "GX010063.MP4", None, DATA / ".cache", "test")
+    compute([c])
+    compute([plain])
+    faces = c.parts["faces"]
+    return {
+        "a face raises interest while it's in view": faces[105:135].mean() > 0.7 and faces[:90].max() < 0.05
+                                                     and c.parts["people"][110:130].mean() > 0.05,
+        "no detector: no face or people parts": "faces" not in plain.parts and "people" not in plain.parts,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -503,6 +530,7 @@ def main() -> int:
         **inout_checks(),
         **slowmo_checks(),
         **audio_event_checks(),
+        **people_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

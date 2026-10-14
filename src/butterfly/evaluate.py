@@ -19,6 +19,7 @@ from pathlib import Path
 
 from . import config as C
 from .audio_events import load_tagger
+from .people import load_people
 from .cli import analyse_folder, find_videos, load_scorer, score_folder
 from .photos import find_photos
 from .select_moments import plan_durations, select
@@ -113,6 +114,7 @@ def main() -> None:
     ap.add_argument("--clip-pretrained", default=C.CLIP_PRETRAINED)
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--no-audio-events", action="store_true")
+    ap.add_argument("--no-faces", action="store_true")
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM")
     ap.add_argument("--strict", action="store_true", help="exit 1 if there are violations")
     args = ap.parse_args()
@@ -124,8 +126,9 @@ def main() -> None:
     labels = load_labels(labels_path)
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
     tagger, suffix = load_tagger(not (args.no_vision or args.no_audio_events))
-    clips = analyse_folder(folder, find_videos(folder), scorer, tag + suffix, args.refresh, not args.no_vision,
-                           find_photos(folder), tagger)
+    people, psuffix = load_people(not (args.no_vision or args.no_faces))
+    clips = analyse_folder(folder, find_videos(folder), scorer, tag + suffix + psuffix, args.refresh,
+                           not args.no_vision, find_photos(folder), tagger, people)
     if not clips:
         sys.exit("Nothing to work with.")
     score_folder(clips, args.clock_offset)
