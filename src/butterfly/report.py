@@ -36,8 +36,6 @@ def _timeline(c, picks, out: Path) -> None:
     for p in picks:
         if p.clip is c:
             ax.axvspan(p.start, p.start + p.dur, color="#2e9e5b", alpha=0.25)
-    for h in c.hilights:
-        ax.axvline(h, color="#e08a00", ls="--", lw=1)
     ax.set_xlim(0, max(c.duration, 1))
     ax.set_ylim(0, top * 1.05)
     ax.set_xlabel("seconds")
@@ -85,8 +83,6 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
         tags = [f"{c.duration:.0f}s", f"{n_picks} pick(s)", f"{100 * unusable_fraction(c):.0f}% unusable"]
         if c.events.get("drops"):
             tags.append(f"{len(c.events['drops'])} drop(s)")
-        if c.hilights:
-            tags.append(f"{len(c.hilights)} HiLight(s)")
         notes = f'<div class="muted">{html.escape("; ".join(c.notes))}</div>' if c.notes else ""
         sections.append(
             f'<div class="clip"><div><b>{html.escape(c.path.name)}</b> '
@@ -102,7 +98,7 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
 <h2>Picks</h2><div class="grid">{''.join(cards)}</div>
 <h2>Clips</h2>
 <div class="muted" style="margin-bottom:10px">Blue = score, grey line = interest, grey fill = quality,
-green = picked, red = drop (free-fall), orange dashed = HiLight.</div>
+green = picked, red = drop (free-fall).</div>
 {''.join(sections)}
 </main></body></html>"""
     index = out_dir / "index.html"

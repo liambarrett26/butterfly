@@ -1,7 +1,7 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 3        # bump to invalidate cached analyses
+CACHE_VERSION = 4        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 
 # ---------------------------------------------------------------- vision
@@ -59,11 +59,8 @@ INTEREST_WEIGHTS = {
     "action": 0.8,       # smooth speed + turns (never shake)
     "audio": 0.4,        # loudness peaks above rolling baseline
     "colour": 0.2,       # colourfulness
-    "hilight": 2.5,      # in-camera HiLight tag bump (absolute, not normalised)
     "water": 0.8,        # entering water (wet mic transition), absolute bump
 }
-HILIGHT_LEAD = 1.0       # tags come just after the moment; centre bump this much earlier
-HILIGHT_WIDTH = 1.5      # s, gaussian sigma
 
 # ---------------------------------------------------------------- quality gates
 GATES = {

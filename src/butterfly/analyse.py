@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config as C
-from .gpmf import load_telemetry, read_hilights
+from .gpmf import load_telemetry
 from .signals import audio_features, telemetry_features
 from .vision import analyse_vision
 
@@ -27,7 +27,6 @@ class Clip:
     emb_t: np.ndarray | None = None                 # frame times for embeddings
     emb: np.ndarray | None = None                   # [N, D] float16 CLIP embeddings
     events: dict = field(default_factory=dict)      # drops, water_entries
-    hilights: list = field(default_factory=list)
     notes: list = field(default_factory=list)
     # filled by score.py
     q: np.ndarray | None = None
@@ -80,7 +79,7 @@ def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = 
         clip.feats = {k[2:]: z[k] for k in z.files if k.startswith("f_")}
         if "emb" in z.files:
             clip.emb_t, clip.emb = z["emb_t"], z["emb"]
-        clip.events, clip.hilights, clip.notes = meta["events"], meta["hilights"], meta["notes"] + ["cached"]
+        clip.events, clip.notes = meta["events"], meta["notes"] + ["cached"]
         return clip
 
     n = clip.n
@@ -90,8 +89,6 @@ def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = 
     feats, events = telemetry_features(tel, n)
     if has_audio:
         feats.update(audio_features(path, n))
-    clip.hilights, hl_notes = read_hilights(path)
-    clip.notes += hl_notes
 
     vis = analyse_vision(path, scorer) if vision else {}
     if vis:
@@ -110,6 +107,6 @@ def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = 
     arrays = {f"f_{k}": v for k, v in feats.items()}
     if clip.emb is not None:
         arrays["emb_t"], arrays["emb"] = clip.emb_t, clip.emb
-    meta = json.dumps({"events": events, "hilights": clip.hilights, "notes": clip.notes})
+    meta = json.dumps({"events": events, "notes": clip.notes})
     np.savez_compressed(cache, __meta__=np.array(meta), **arrays)
     return clip
