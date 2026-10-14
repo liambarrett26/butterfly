@@ -91,6 +91,8 @@ def main() -> None:
     ap.add_argument("--diversity", type=float, default=C.DIVERSITY, help="0 = pure score, 1 = pure variety")
     ap.add_argument("--no-vision", action="store_true", help="skip CLIP/frame analysis (telemetry + audio only)")
     ap.add_argument("--no-clip", action="store_true", help="classic CV metrics only, no CLIP model")
+    ap.add_argument("--photos", choices=["auto", "off", "only"], default="auto",
+                    help="photos in the reel: auto (up to a quarter of the cuts), off, or only photos")
     ap.add_argument("--clip-model", default=C.CLIP_MODEL)
     ap.add_argument("--clip-pretrained", default=C.CLIP_PRETRAINED)
     ap.add_argument("--refresh", action="store_true", help="ignore the analysis cache")
@@ -105,7 +107,8 @@ def main() -> None:
             sys.exit(f"{tool} not found — install with `brew install ffmpeg`")
 
     folder = args.folder.expanduser()
-    files, photos = find_videos(folder), find_photos(folder)
+    files = find_videos(folder)
+    photos = [] if args.photos == "off" else find_photos(folder)
     if not files and not photos:
         sys.exit(f"No videos ({', '.join(C.VIDEO_EXTS)}) or photos ({', '.join(C.PHOTO_EXTS)}) in {folder}")
     out = (args.out or folder / "highlights.mp4").expanduser()
@@ -119,19 +122,21 @@ def main() -> None:
     # ---------------------------------------------------------------- score + select
     compute(clips)
     durations = plan_durations(args.length, args.seg, args.music, args.music_start)
-    picks = select(clips, durations, args.diversity)
+    picks = select(clips, durations, args.diversity, args.photos)
 
     total = sum(p.dur for p in picks)
     print(f"\nReel plan: {len(picks)} cuts, {total:.1f}s")
     print(f"  {'#':>2}  {'clip':<14} {'in':>7} {'out':>7}  {'score':>5}  why")
     for i, p in enumerate(picks, 1):
-        print(f"  {i:>2}  {p.clip.path.name:<14} {p.start:7.1f} {p.start + p.dur:7.1f}  {p.score:5.2f}  {p.reasons}")
+        span = f"{'photo':>7} {p.dur:6.1f}s" if p.clip.kind == "photo" else f"{p.start:7.1f} {p.start + p.dur:7.1f}"
+        print(f"  {i:>2}  {p.clip.path.name:<14} {span}  {p.score:5.2f}  {p.reasons}")
     if total < args.length - 0.5:
         print("  (shorter than requested: not enough usable footage)")
 
     if not args.no_report:
         settings = (f"{'no vision' if args.no_vision else ('CLIP ' + args.clip_model if scorer else 'classic CV')}"
-                    f", diversity {args.diversity}, {args.seg}s cuts" + (f", music {args.music.name}" if args.music else ""))
+                    f", diversity {args.diversity}, {args.seg}s cuts, photos {args.photos}"
+                    + (f", music {args.music.name}" if args.music else ""))
         index = write_report(clips, picks, folder, work / "report", settings)
         print(f"\nReport: {index}")
 

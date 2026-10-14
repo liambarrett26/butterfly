@@ -109,6 +109,9 @@ PHOTO = {
     "blur_hi": 0.5,      # …at or above this, no blur penalty
     "blur_floor": 0.1,   # blur gate for a clearly blurred photo (below window_min_q, so never used)
 }
+MAX_PHOTO_SHARE = 0.25   # at most this share of the reel's cuts are photos (owner decision); video leads
+PHOTO_SCORE_FACTOR = 0.8 # photo score × this competes with video window scores (photos are normalised separately)
+PHOTO_ZOOM = 0.08        # Ken Burns: zoom 1.00 → 1 + this over a photo's slot (direction alternates)
 
 # ---------------------------------------------------------------- render
 FILL_ASPECT_TOL = 0.02   # items whose display aspect is off the reel's (16:9) by more than this fraction…
