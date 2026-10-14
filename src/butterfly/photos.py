@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config as C
-from .analyse import Clip, cache_path
+from .analyse import Clip, cache_path, probe
 from .vision import classic_metrics
 
 # timestamps in file names: IMG_20261010_123526, PXL_20261010_123526123, 2026-10-10 12.35.26
@@ -78,6 +78,19 @@ def capture_time(path: Path, exif) -> dict:
     return {"local": utc.isoformat(), "offset_s": 0, "source": "mtime"}
 
 
+def signature(im) -> np.ndarray:
+    """32×24 grey thumbnail, zero-mean and unit-norm: near-identical shots correlate close to 1."""
+    a = np.asarray(im.convert("L").resize((32, 24)), dtype=np.float32).ravel()
+    a -= a.mean()
+    return a / (np.linalg.norm(a) + 1e-6)
+
+
+def device_of(exif) -> str:
+    model = str(exif.get(0x0110, "") or "").strip() if exif else ""          # Model
+    make = str(exif.get(0x010F, "") or "").strip() if exif else ""           # Make
+    return model or make or "unknown"
+
+
 def analyse_photo(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = False) -> Clip:
     """Quality metrics + CLIP for one photo, cached like a clip. `created` is set by assign_times."""
     cache = cache_path(path, cache_dir, tag)
@@ -89,10 +102,12 @@ def analyse_photo(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool =
         if "emb" in z.files:
             clip.emb_t, clip.emb = z["emb_t"], z["emb"]
         clip.size, clip.info, clip.notes = tuple(meta["size"]), meta["info"], meta["notes"] + ["cached"]
+        clip.sig = z["sig"] if "sig" in z.files else None
         return clip
 
     im, exif = open_photo(path)
-    clip.size, clip.info = im.size, capture_time(path, exif)
+    clip.size, clip.info = im.size, {**capture_time(path, exif), "device": device_of(exif)}
+    clip.sig = signature(im)
     w = min(C.PHOTO["width"], im.width)
     frame = np.asarray(im.resize((w, max(2, round(im.height * w / im.width)))))[None]
     m, _ = classic_metrics(frame, None)
@@ -104,6 +119,7 @@ def analyse_photo(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool =
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     arrays = {f"f_{k}": v for k, v in clip.feats.items()}
+    arrays["sig"] = clip.sig
     if clip.emb is not None:
         arrays["emb_t"], arrays["emb"] = clip.emb_t, clip.emb
     meta = json.dumps({"size": list(clip.size), "info": clip.info, "notes": clip.notes})
@@ -129,3 +145,59 @@ def assign_times(photos: list[Clip]) -> None:
         elif src == "mtime":
             p.notes.append("time from file date (unreliable)")
         p.created = local - timedelta(seconds=off or 0)
+
+
+def live_photo_motion(videos: list[Path], photos: list[Path]) -> set[Path]:
+    """Videos that are a Live Photo's motion: same file stem as a photo, at most LIVE_PHOTO_MAX_S long."""
+    stems = {p.stem.lower() for p in photos}
+    out = set()
+    for v in videos:
+        if v.stem.lower() in stems:
+            try:
+                if probe(v)[0] <= C.LIVE_PHOTO_MAX_S:
+                    out.add(v)
+            except Exception:
+                pass
+    return out
+
+
+def parse_clock_offset(spec: str) -> tuple[str, timedelta]:
+    """'iPhone 14 Plus=+01:00' -> ('iPhone 14 Plus', +1 h). Added to that device's times."""
+    device, _, off = spec.rpartition("=")
+    d = _offset(off)
+    if not device.strip() or d is None:
+        raise ValueError(f"--clock-offset wants DEVICE=±HH:MM, got {spec!r}")
+    return device.strip(), d
+
+
+def apply_clock_offsets(items: list[Clip], offsets: dict[str, timedelta]) -> None:
+    for c in items:
+        d = offsets.get(c.info.get("device", "unknown"))
+        if d:
+            c.created += d
+            c.notes.append(f"clock corrected by {d}")
+
+
+def collapse_bursts(photos: list[Clip]) -> None:
+    """Mark all but the best-scoring photo of each burst with info['burst_of'] (call after scoring).
+
+    A burst is a run of photos at most BURST_GAP_S apart whose signatures correlate ≥ BURST_SIM
+    with the previous shot in the run.
+    """
+    runs: list[list[Clip]] = []
+    for c in sorted(photos, key=lambda c: c.created):
+        c.info.pop("burst_of", None)
+        prev = runs[-1][-1] if runs else None
+        if (prev is not None and c.sig is not None and prev.sig is not None
+                and (c.created - prev.created).total_seconds() <= C.BURST_GAP_S
+                and float(c.sig @ prev.sig) >= C.BURST_SIM):
+            runs[-1].append(c)
+        else:
+            runs.append([c])
+    for run in runs:
+        if len(run) > 1:
+            keep = max(run, key=lambda c: float(c.score[0]))
+            for c in run:
+                if c is not keep:
+                    c.info["burst_of"] = keep.path.name
+                    c.notes.append(f"burst: kept {keep.path.name}")

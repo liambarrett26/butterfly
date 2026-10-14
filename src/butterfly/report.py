@@ -72,6 +72,7 @@ h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 12px}
 .clip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px}
 .clip img{width:100%;height:auto;background:#fff;border-radius:6px}
 .card.gated{opacity:.55}.card .bad{color:#d64545;font-weight:600}
+table.dev{border-collapse:collapse;font-size:13px}table.dev td{padding:4px 12px 4px 0;border-bottom:1px solid var(--line)}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);margin-right:6px}
 """
 
@@ -93,13 +94,14 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
     for c in sorted((c for c in clips if c.kind == "photo"), key=lambda c: -float(c.score[0])):
         img = out_dir / f"photo_{c.path.stem}.jpg"
         src = img.name if _photo_thumb(c.path, img) else ""
-        gated = float(c.q[0]) < C.GATES["window_min_q"]
+        gated = float(c.q[0]) < C.GATES["window_min_q"] or bool(c.info.get("burst_of"))
         when = c.created.strftime("%Y-%m-%d %H:%M") + " UTC"
         photo_cards.append(
             f'<div class="card{" gated" if gated else ""}"><img src="{src}" alt=""><div class="b">'
             f'<div class="t">{html.escape(c.path.name)}</div>'
             f'<div class="muted">q {float(c.q[0]):.2f} · score {float(c.score[0]):.2f} · {html.escape(when)}</div>'
-            + ('<div class="bad">gated: not usable</div>' if gated else "")
+            + (f'<div class="bad">burst: kept {html.escape(c.info["burst_of"])}</div>' if c.info.get("burst_of")
+               else '<div class="bad">gated: not usable</div>' if gated else "")
             + f'<div>{html.escape(why(c, 0, 1))}</div>'
             + (f'<div class="muted">{html.escape("; ".join(c.notes))}</div>' if c.notes else "")
             + '</div></div>')
@@ -118,6 +120,19 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
             + "".join(f'<span class="tag">{html.escape(t)}</span>' for t in tags)
             + f'</div>{notes}<img src="{img.name}" alt="timeline"></div>')
 
+    devices: dict[str, list] = {}
+    for c in clips:
+        devices.setdefault(c.info.get("device", "unknown"), []).append(c)
+    rows = []
+    for dev, items in sorted(devices.items(), key=lambda kv: min(c.created for c in kv[1])):
+        t0, t1 = min(c.created for c in items), max(c.created for c in items)
+        nv, nph = sum(c.kind == "video" for c in items), sum(c.kind == "photo" for c in items)
+        what = ", ".join(x for x in (f"{nv} clip(s)" if nv else "", f"{nph} photo(s)" if nph else "") if x)
+        rows.append(f"<tr><td>{html.escape(dev)}</td><td>{what}</td>"
+                    f"<td>{t0:%Y-%m-%d %H:%M} – {t1:%Y-%m-%d %H:%M} UTC</td></tr>")
+    devices_html = ('<h2>Devices</h2><div class="muted" style="margin-bottom:8px">If one device\'s times look '
+                    'hours off from the others, correct its clock with <code>--clock-offset "DEVICE=±HH:MM"</code>.'
+                    f'</div><table class="dev">{"".join(rows)}</table>') if len(devices) > 1 else ""
     total = sum(p.dur for p in picks)
     photos_html = (f'<h2>Photos</h2><div class="muted" style="margin-bottom:10px">Best first. '
                    f'Faded = gated (blurred, dark, blown or unusable). Usable photos compete with video for up to a quarter of the cuts.</div>'
@@ -133,6 +148,7 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
 green = picked, red = drop (free-fall).</div>
 {''.join(sections)}
 {photos_html}
+{devices_html}
 </main></body></html>"""
     index = out_dir / "index.html"
     index.write_text(page)

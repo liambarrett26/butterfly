@@ -175,6 +175,7 @@ faster than decoding 4K HEVC.
 | `--no-clip` | off | Classic CV only, no vision model |
 | `--no-vision` | off | Telemetry + audio only (fastest; no photos) |
 | `--photos` | auto | Photos in the reel: `auto` (up to a quarter of the cuts), `off`, or `only` (a photo reel) |
+| `--clock-offset` | — | Correct a device's clock, e.g. `"iPhone 14 Plus=+01:00"` (repeatable; devices are listed in the report) |
 | `--clip-model` / `--clip-pretrained` | ViT-B-32 / laion2b | e.g. `MobileCLIP-S2` / `datacompdr` for speed |
 | `--refresh` | off | Ignore the analysis cache |
 | `--dry-run` | off | Analyse, plan and write the report without rendering |
@@ -272,7 +273,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (43 / 43 checks
+Tested end-to-end on synthetic clips with injected telemetry (49 / 49 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -290,6 +291,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Bursts, Live Photos, clocks, duplicates | burst → best shot; Live Photo `.MOV` not a clip; offset applied; photo of a picked video moment dropped | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
@@ -356,7 +358,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Photos in the reel: one selection pool with video, a cap on the photo
   share, gentle Ken Burns motion, a blurred fill for portrait shots, and
   beat-aligned durations
-- [ ] Bursts and duplicates collapsed, photos of a moment already in a picked
+- [x] Bursts and duplicates collapsed, photos of a moment already in a picked
   video dropped, clocks aligned across devices, and Live Photos paired
 
 ### v0.6 — motion and timing
@@ -401,6 +403,13 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ### Unreleased
 
+- Photo bursts (shots ≤ 3 s apart that look the same) collapse to the best
+  one. A photo of a moment a picked video already shows is dropped (with
+  CLIP). An iPhone Live Photo's short `.MOV` stays with its photo instead of
+  becoming a clip. Every item records its device. The report lists devices
+  with their time spans, and `--clock-offset "DEVICE=±HH:MM"` fixes a
+  device's clock. A video without a creation time now falls back to its file
+  date in UTC, as everything else is. `CACHE_VERSION` is 8.
 - Photos are in the reel. They compete with video windows in one selection
   pool, take at most a quarter of the cuts (`MAX_PHOTO_SHARE`), never when
   gated, and are placed in time order among the clips. Each photo fills one

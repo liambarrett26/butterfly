@@ -87,14 +87,25 @@ def candidates(c: Clip, L: float) -> list[Pick]:
 # ------------------------------------------------------------------ selection
 
 def photo_candidate(c: Clip, L: float) -> Pick | None:
-    """A usable photo as one candidate cut (start 0, a slot of length L); None if it is gated."""
-    if float(c.q[0]) < C.GATES["window_min_q"]:
+    """A usable photo as one candidate cut (start 0, a slot of length L); None if gated or a burst duplicate."""
+    if float(c.q[0]) < C.GATES["window_min_q"] or c.info.get("burst_of"):
         return None
     emb = None
     if c.emb is not None and len(c.emb):
         emb = c.emb[0].astype(np.float32)
         emb /= np.linalg.norm(emb) + 1e-9
     return Pick(c, 0.0, L, float(c.score[0]) * C.PHOTO_SCORE_FACTOR, why(c, 0, 1), emb)
+
+
+def same_moment(photo: Pick, video: Pick) -> bool:
+    """Does the photo show what the video window already shows? Within DEDUPE_S of the window
+    and CLIP-similar (DEDUPE_SIM). Needs embeddings on both; without CLIP, nothing is a duplicate."""
+    if photo.emb is None or video.emb is None:
+        return False
+    t = photo.clip.created
+    lo = video.clip.created + timedelta(seconds=video.start - C.DEDUPE_S)
+    hi = video.clip.created + timedelta(seconds=video.start + video.dur + C.DEDUPE_S)
+    return lo <= t <= hi and float(photo.emb @ video.emb) >= C.DEDUPE_SIM
 
 
 def moment(p: Pick) -> datetime:
@@ -141,10 +152,18 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
                 best, best_val = p, val
         if best is None:
             break
+        remaining.remove(best)
+        if best.clip.kind == "photo":
+            if any(same_moment(best, q) for q in chosen if q.clip.kind == "video"):
+                continue                                     # the video already shows this moment
+        else:
+            dupes = [q for q in chosen if q.clip.kind == "photo" and same_moment(q, best)]
+            for q in dupes:                                  # video leads: it replaces the photo
+                chosen.remove(q)
+            n_photos -= len(dupes)
         chosen.append(best)
         n_photos += best.clip.kind == "photo"
         per_clip[best.clip.path] = per_clip.get(best.clip.path, 0) + 1
-        remaining.remove(best)
 
     chosen.sort(key=lambda p: (moment(p), p.clip.path.name))
     for p, d in zip(chosen, durations):
