@@ -184,6 +184,7 @@ faster than decoding 4K HEVC.
 | `--no-faces` | off | Skip face and people detection (Apple Vision, macOS) |
 | `--days` | off | Multi-day folders: `split` = one reel per day (`highlights_YYYY-MM-DD.mp4`); `titles` = one trip reel with a "Day N" title card opening each day |
 | `--tz` | — | The trip's UTC offset for `--days`, e.g. `-05:00` (default: each item's EXIF offset or GPS, else the folder's usual offset) |
+| `--ranker` | auto | Learned interest weights: `auto` (the folder's `ranker.json` if it beat the hand weights), `off`, or a `ranker.json` from another trip |
 | `--no-slowmo` | off | Never slow down high-frame-rate clips (by default the best 2 cuts from ≥ 100 fps clips play at half speed) |
 | `--clock-offset` | — | Correct a device's clock, e.g. `"iPhone 14 Plus=+01:00"` (repeatable; devices are listed in the report) |
 | `--clip-model` / `--clip-pretrained` | ViT-B-32 / laion2b | e.g. `MobileCLIP-S2` / `datacompdr` for speed |
@@ -218,7 +219,18 @@ butterfly-review ~/Movies/GoPro   # opens the report; 👍 good / 👎 dull / �
 
 It serves the report on `127.0.0.1` (this computer only). Opened as a plain
 file, the report keeps your clicks in the browser and offers a download of
-`labels.json` instead. The labels feed `butterfly-eval`.
+`labels.json` instead. The labels feed `butterfly-eval`, and they can train
+your own interest weights:
+
+```bash
+butterfly-train ~/Movies/GoPro    # learns weights from your labels -> .butterfly/ranker.json
+```
+
+From then on, `butterfly` uses the learned weights (`--ranker auto`), but
+only if they ranked your labelled moments better than the hand-set weights in
+cross-validation. The more you label, the more they count (half-and-half at
+20 labels). `--ranker FILE` reuses a ranker from another trip; `--ranker off`
+ignores it.
 
 ## Repository layout
 
@@ -293,7 +305,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (73 / 73 checks
+Tested end-to-end on synthetic clips with injected telemetry (77 / 77 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -311,6 +323,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Learned ranker (labels against the hand weights) | learns the labelled preference, wins cross-validation, reorders interest; `auto` only when it wins | ✓ |
 | Report labelling | buttons on picks and photos; relabelling replaces; review server local-only and saves | ✓ |
 | Multi-day (2–3 synthetic days) | local day by time zone; titles open each day; length kept; per-day reels; photo-only days | ✓ |
 | Shots (scene change at 10 s) | two shots; one pick per shot; relaxed to fill the reel | ✓ |
@@ -402,7 +415,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ### v0.9 — personalisation
 - [x] Thumbs up/down on picks in the HTML report, saved to a labels file
-- [ ] A learned ranker over window features, replacing hand-set weights
+- [x] A learned ranker over window features, replacing hand-set weights
 - [ ] Trip presets (beach, snow, city, bike)
 
 ### Later
@@ -427,6 +440,17 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Learned ranker: `butterfly-train FOLDER` learns interest weights from your
+  labels with a logistic regression over the unweighted interest parts. The
+  learned weights are blended with the hand-set ones by how many labels there
+  are, and checked by leave-one-clip-out cross-validation. `--ranker auto`
+  uses them only if they beat the hand weights. Signals absent from your
+  labels keep their hand weights. On the 22 drafted GoPro labels the
+  cross-validated AUC rose from 0.71 to 0.86 (more weight on people and
+  aesthetics, less on CLIP semantics).
 
 ### Unreleased
 

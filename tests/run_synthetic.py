@@ -618,6 +618,45 @@ def review_checks() -> dict:
     }
 
 
+def ranker_checks() -> dict:
+    """Labels that contradict the hand weights: good = colourful, dull = loud (hand favours loud).
+    12 labels across 6 clips, enough for the shrinkage (alpha = 12 / 32) to let the evidence show."""
+    from datetime import datetime
+
+    from butterfly.analyse import Clip
+    from butterfly.ranker import load_weights, train
+
+    rng = np.random.default_rng(5)
+    clips = []
+    names = [f"rank_{k}.mp4" for k in range(6)]
+    for name in names:
+        c = Clip(Path(name), 40.0, datetime(2026, 1, 1), True, 30.0)
+        t = np.arange(c.n) * 0.1
+        c.feats = {"colour": np.where((t >= 5) & (t < 15), 1.0, 0.1) + rng.normal(0, 0.02, c.n),
+                   "audio_peak": np.where((t >= 20) & (t < 30), 1.0, 0.1) + rng.normal(0, 0.02, c.n)}
+        clips.append(c)
+    labels = [{"clip": n, "start": 5, "end": 15, "label": "good"} for n in names] + \
+             [{"clip": n, "start": 20, "end": 30, "label": "dull"} for n in names]
+    compute(clips)
+    hand_order = clips[0].interest[50:150].mean() < clips[0].interest[200:300].mean()   # hand: dull above good
+    r = train(clips, labels)
+    compute(clips, r["weights"])
+    learned_order = clips[0].interest[50:150].mean() > clips[0].interest[200:300].mean()
+    folder = DATA / "rankfolder"
+    (folder / C.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+    (folder / C.OUTPUT_DIR / "ranker.json").write_text(json.dumps(r))
+    used, _ = load_weights("auto", folder)
+    (folder / C.OUTPUT_DIR / "ranker.json").write_text(json.dumps({**r, "cv_auc_learned": 0.1, "cv_auc_hand": 0.9}))
+    refused, _ = load_weights("auto", folder)
+    return {
+        "ranker: learns colour over loudness from the labels": r["weights"]["colour"] > r["weights"]["audio"]
+                                                               and hand_order,
+        "ranker: beats the hand weights in cross-validation": r["cv_auc_learned"] > r["cv_auc_hand"],
+        "ranker: learned weights reorder interest": learned_order,
+        "ranker: auto uses it only when it beats the hand weights": used == r["weights"] and refused is None,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -657,6 +696,7 @@ def main() -> int:
         **people_checks(),
         **shot_checks(),
         **day_checks(),
+        **ranker_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

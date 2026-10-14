@@ -19,6 +19,7 @@ from pathlib import Path
 from . import config as C
 from .analyse import analyse_clip
 from .audio_events import load_tagger
+from .ranker import load_weights
 from .days import group_by_day, local_offsets, select_with_titles
 from .people import load_people
 from .photos import (analyse_photo, apply_clock_offsets, assign_times, collapse_bursts, find_photos,
@@ -85,11 +86,11 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
     return clips
 
 
-def score_folder(clips: list, clock_offsets: list[str] = ()) -> None:
+def score_folder(clips: list, clock_offsets: list[str] = (), weights: dict | None = None) -> None:
     """Clock corrections, time order, scoring, then burst collapsing (which needs the scores)."""
     apply_clock_offsets(clips, dict(parse_clock_offset(s) for s in clock_offsets))
     clips.sort(key=lambda c: (c.created, c.path.name))
-    compute(clips)
+    compute(clips, weights)
     collapse_bursts([c for c in clips if c.kind == "photo"])
 
 
@@ -115,6 +116,9 @@ def main() -> None:
                     help="multi-day folders: split = one reel per day; titles = one trip reel with a title card per day")
     ap.add_argument("--tz", metavar="±HH:MM", help="the trip's UTC offset for --days (default: from photos, GPS, "
                                                   "or this computer)")
+    ap.add_argument("--ranker", default="auto", metavar="auto|off|FILE",
+                    help="learned interest weights: auto = <folder>/.butterfly/ranker.json if it beat the hand "
+                         "weights (butterfly-train), off, or a ranker.json from another trip")
     ap.add_argument("--no-slowmo", action="store_true", help="never slow down high-frame-rate clips")
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM",
                     help="correct a device's clock, e.g. 'iPhone 14 Plus=+01:00' (repeatable; device names "
@@ -149,8 +153,11 @@ def main() -> None:
         sys.exit("Nothing to work with.")
 
     # ---------------------------------------------------------------- score + select
+    weights, note = load_weights(args.ranker, folder)
+    if note:
+        print(f"  {note}")
     try:
-        score_folder(clips, args.clock_offset)
+        score_folder(clips, args.clock_offset, weights)
     except ValueError as e:
         sys.exit(str(e))
     durations = plan_durations(args.length, args.seg, args.music, args.music_start)

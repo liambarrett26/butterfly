@@ -42,26 +42,35 @@ def _bumps(n: int, centres: list[float], sigma: float) -> np.ndarray:
 
 
 def _people_parts(f: dict, n: int) -> dict:
-    """Faces and people as absolute interest parts (presence means the same in any folder)."""
+    """Faces and people as absolute, unweighted interest parts (presence means the same in any folder)."""
     if "face_area" not in f:
         return {}
-    W = C.INTEREST_WEIGHTS
-    return {"faces": W["faces"] * _ramp(f["face_area"][:n], C.FACE_LO, C.FACE_HI),
-            "people": W["people"] * np.clip(f["n_people"][:n] / 3, 0, 1)}
+    return {"faces": _ramp(f["face_area"][:n], C.FACE_LO, C.FACE_HI),
+            "people": np.clip(f["n_people"][:n] / 3, 0, 1)}
 
 
-def compute(clips: list[Clip]) -> None:
-    """Gates -> q, parts -> interest, score = interest × q. Videos and photos are normalised separately."""
-    _compute_videos([c for c in clips if c.kind == "video"])
-    _compute_photos([c for c in clips if c.kind == "photo"])
+def _weigh(c: Clip, raw: dict, W: dict) -> dict:
+    """Keep the unweighted parts (ranker features) and return the weighted ones."""
+    c.raw = raw
+    return {k: W.get(k, 0.0) * v for k, v in raw.items()}
 
 
-def _compute_photos(photos: list[Clip]) -> None:
+def compute(clips: list[Clip], weights: dict | None = None) -> None:
+    """Gates -> q, parts -> interest, score = interest × q. Videos and photos are normalised separately.
+
+    weights: interest weights overriding config.INTEREST_WEIGHTS (e.g. from a learned ranker).
+    """
+    W = {**C.INTEREST_WEIGHTS, **(weights or {})}
+    _compute_videos([c for c in clips if c.kind == "video"], W)
+    _compute_photos([c for c in clips if c.kind == "photo"], W)
+
+
+def _compute_photos(photos: list[Clip], W: dict) -> None:
     """A photo is one frame: blur (against the folder's photos), exposure and CLIP gates; semantic,
     aesthetic and colour interest, normalised against photos only."""
     if not photos:
         return
-    P, W = C.PHOTO, C.INTEREST_WEIGHTS
+    P = C.PHOTO
     norm = {k: _folder_norm(photos, k) for k in ("semantic", "aesthetic", "colour")}
     mid = float(np.median([c.feats["sharpness"][0] for c in photos]))
     for c in photos:
@@ -77,14 +86,13 @@ def _compute_photos(photos: list[Clip]) -> None:
         q = np.ones(1)
         for g in gates.values():
             q = q * g
-        parts = {k: W[k] * get(k) for k in ("semantic", "aesthetic", "colour")}
-        parts.update(_people_parts(f, 1))
+        parts = _weigh(c, {**{k: get(k) for k in ("semantic", "aesthetic", "colour")}, **_people_parts(f, 1)}, W)
         c.gates, c.parts, c.q = gates, parts, q
         c.interest = sum(parts.values()) + 0.05
         c.score = c.interest * q
 
 
-def _compute_videos(clips: list[Clip]) -> None:
+def _compute_videos(clips: list[Clip], W: dict) -> None:
     if not clips:
         return
     norm = {k: _folder_norm(clips, k) for k in ("semantic", "aesthetic", "colour", "speed", "turn", "audio_peak", "shake")}
@@ -94,7 +102,6 @@ def _compute_videos(clips: list[Clip]) -> None:
     blur_thr = np.percentile(sharp_all, G["blur_pct"]) if sharp_all.size else None
     sharp_mid = np.percentile(sharp_all, 50) if sharp_all.size else None
 
-    W = C.INTEREST_WEIGHTS
     for c in clips:
         n, f = c.n, c.feats
         t = np.arange(n) * C.DT
@@ -143,19 +150,19 @@ def _compute_videos(clips: list[Clip]) -> None:
             q *= g
 
         # ---------------------------------------------------------- interest
-        parts = {
-            "semantic": W["semantic"] * get("semantic"),
-            "aesthetic": W["aesthetic"] * get("aesthetic"),
-            "colour": W["colour"] * get("colour"),
+        parts = _weigh(c, {
+            "semantic": get("semantic"),
+            "aesthetic": get("aesthetic"),
+            "colour": get("colour"),
             # motion only counts when it's smooth, intentional motion
-            "action": W["action"] * (get("speed") + 0.5 * get("turn")) * (1 - np.clip(shaky, 0, 1)),
-            "subject": W["subject"] * get("subject_motion") * (1 - np.clip(shaky, 0, 1)),
-            "audio": W["audio"] * get("audio_peak"),
-            **{e: W[e] * _ramp(f[f"ev_{e}"][:n], C.EVENT_LO, C.EVENT_HI)
+            "action": (get("speed") + 0.5 * get("turn")) * (1 - np.clip(shaky, 0, 1)),
+            "subject": get("subject_motion") * (1 - np.clip(shaky, 0, 1)),
+            "audio": get("audio_peak"),
+            **{e: _ramp(f[f"ev_{e}"][:n], C.EVENT_LO, C.EVENT_HI)
                for e in ("laughter", "cheering", "splash", "speech") if f"ev_{e}" in f},
             **_people_parts(f, n),
-            "water": W["water"] * _bumps(n, [w + 0.5 for w in c.events.get("water_entries", [])], 1.0),
-        }
+            "water": _bumps(n, [w + 0.5 for w in c.events.get("water_entries", [])], 1.0),
+        }, W)
         interest = sum(parts.values()) + 0.05
 
         c.gates, c.parts, c.q, c.interest = gates, parts, q, interest
