@@ -15,12 +15,20 @@ def _ramp(x, lo, hi):
     return np.clip((x - lo) / (hi - lo + 1e-9), 0, 1)
 
 
-def _folder_norm(clips: list[Clip], key: str) -> dict:
-    """Per-clip arrays scaled against the whole folder: p50 -> 0, p95 -> 1, capped at 3."""
+def _folder_norm(clips: list[Clip], key: str, steady: bool = False) -> dict:
+    """Per-clip arrays scaled against the whole folder: p50 -> 0, p95 -> 1, capped at 3.
+
+    steady=True takes the percentiles only from moments without visible camera shake: optical
+    flow is unreliable while the image jitters, and shaky footage shouldn't set everyone's baseline.
+    """
     have = [c for c in clips if key in c.feats]
     if not have:
         return {}
     vals = np.concatenate([c.feats[key] for c in have])
+    if steady:
+        calm = np.concatenate([c.feats["camera_shake"] < G["cam_shake_lo"] if "camera_shake" in c.feats
+                               else np.ones(len(c.feats[key]), bool) for c in have])
+        vals = vals[calm] if calm.any() else vals
     p50, p95 = np.percentile(vals, [50, 95])
     return {id(c): np.clip((c.feats[key] - p50) / (p95 - p50 + 1e-9), 0, 3) for c in have}
 
@@ -34,8 +42,8 @@ def _bumps(n: int, centres: list[float], sigma: float) -> np.ndarray:
 
 
 def compute(clips: list[Clip]) -> None:
-    norm = {k: _folder_norm(clips, k)
-            for k in ("semantic", "aesthetic", "colour", "speed", "turn", "audio_peak", "shake")}
+    norm = {k: _folder_norm(clips, k) for k in ("semantic", "aesthetic", "colour", "speed", "turn", "audio_peak", "shake")}
+    norm["subject_motion"] = _folder_norm(clips, "subject_motion", steady=True)
 
     sharp_all = np.concatenate([c.feats["sharpness"] for c in clips if "sharpness" in c.feats] or [np.zeros(0)])
     blur_thr = np.percentile(sharp_all, G["blur_pct"]) if sharp_all.size else None
@@ -58,9 +66,16 @@ def compute(clips: list[Clip]) -> None:
 
         blurry = (1 - np.clip(f["sharpness"][:n] / (sharp_mid + 1e-9), 0, 1)) if sharp_mid else np.full(n, 0.5)
         tumble = _ramp(f["tumble"][:n], G["tumble_deg"] - 15, G["tumble_deg"] + 15) if "tumble" in f else z
-        shaky = np.clip(get("shake"), 0, 1)                      # 0 calm … 1 folder-p95 shake
         riding = (f["speed"][:n] > G["shake_ride_speed"]) if "speed" in f else np.zeros(n, bool)
-        handling = shaky * (0.5 + 0.5 * np.maximum(blurry, tumble))
+        if "shake" in f:                                         # gyro: 0 calm … 1 folder-p95 shake
+            shaky = np.clip(get("shake"), 0, 1)
+            # HyperSmooth hides much gyro shake, so it needs blur or tumble to count in full
+            handling = shaky * (0.5 + 0.5 * np.maximum(blurry, tumble))
+        elif "camera_shake" in f:                                # no gyro: shake seen in the image itself
+            shaky = _ramp(f["camera_shake"][:n], G["cam_shake_lo"], G["cam_shake_hi"])
+            handling = shaky
+        else:
+            shaky = handling = z
         handling = np.where(riding, handling * G["shake_ride_factor"], handling)
         gates["handling"] = 1 - G["shake_penalty"] * handling
 
@@ -87,6 +102,7 @@ def compute(clips: list[Clip]) -> None:
             "colour": W["colour"] * get("colour"),
             # motion only counts when it's smooth, intentional motion
             "action": W["action"] * (get("speed") + 0.5 * get("turn")) * (1 - np.clip(shaky, 0, 1)),
+            "subject": W["subject"] * get("subject_motion") * (1 - np.clip(shaky, 0, 1)),
             "audio": W["audio"] * get("audio_peak"),
             "water": W["water"] * _bumps(n, [w + 0.5 for w in c.events.get("water_entries", [])], 1.0),
         }

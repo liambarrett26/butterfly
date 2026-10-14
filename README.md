@@ -82,6 +82,7 @@ with the camera hitting the sand doesn't make the reel.
 |---|---|---|
 | Drop / free-fall | accelerometer magnitude < 3 m/s² for ≥ 80 ms | hard gate, −1 s to +2.5 s around it |
 | Handling shake | high-pass gyro, combined with blur / tumble / low speed | gate (softer while riding) |
+| Camera shake (no gyro) | optical flow: jitter in the image's camera motion, smooth pans excluded | gate, for footage without telemetry |
 | Tumble | gravity vector vs the clip's usual orientation | gate |
 | Sharpness, exposure | Laplacian variance, mean luma, clipped pixels | gates |
 | CLIP "unusable" | blurry / floor / pocket / finger-on-lens prompts | gate |
@@ -259,7 +260,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (17 / 17 checks
+Tested end-to-end on synthetic clips with injected telemetry (21 / 21 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -273,6 +274,7 @@ passing, also in CI):
 | Render + report | full-length reel, thumbnails, timelines | ✓ |
 | CLI dry run | cache and report in `.butterfly/`, old `.reel_cache/` untouched | ✓ |
 | Phone-style `.MOV`, rotated 90° | picked up, analysed as portrait | ✓ |
+| No telemetry: handheld shake / smooth pan / static | shake penalised; pan and static not | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
@@ -324,8 +326,9 @@ two clips.
 ### v0.4 — any video
 Design: [docs/design/any-footage.md](docs/design/any-footage.md)
 - [x] Pick up `.MOV` / `.m4v` files and honour rotation metadata
-- [ ] Optical flow: a vision-based camera-shake gate for footage without
-  telemetry, and subject motion as interest
+- [x] Optical flow: a vision-based camera-shake gate for footage without
+  telemetry. Subject motion is measured too, but is off as interest for now:
+  on real footage it mostly picks up parallax and water
 - [ ] Portrait clips in a landscape reel: a blurred fill instead of black bars
 - [ ] A labelled set of real clips (good / unusable / dull) from a mixed
   GoPro + phone folder, as a second test suite
@@ -395,6 +398,12 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - Issue templates (bug report, roadmap item) and a pull request template.
 - Roadmap: footage from any source (phone videos, other cameras, photos),
   replacing "other action cameras".
+- Optical flow (OpenCV, now a core dependency): footage without telemetry,
+  such as phone video, gets a camera-shake gate from the image itself. Smooth
+  pans don't count as shake. Subject motion is computed but its interest
+  weight is 0, because on a real trip it rewarded a boat ride (parallax, the
+  bow, water) over people floating. One decode now serves both flow (6 fps)
+  and the existing 2 fps metrics. `CACHE_VERSION` is now 6.
 - Phone video: `.MOV` and `.m4v` files are now picked up as well as `.mp4`,
   and rotated (portrait) clips are analysed at the right aspect instead of
   squashed. `CACHE_VERSION` is now 5.

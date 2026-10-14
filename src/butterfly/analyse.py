@@ -94,9 +94,10 @@ def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = 
     if vis:
         grid = np.arange(n) * C.DT
         for k, v in vis.items():
-            if k in ("t", "embedding", "source"):
+            if k in ("t", "flow_t", "embedding", "source"):
                 continue
-            feats[k] = np.interp(grid, vis["t"], v)
+            t = vis["flow_t"] if k in ("camera_shake", "subject_motion") else vis["t"]
+            feats[k] = np.interp(grid, t, v)
         if "embedding" in vis:
             clip.emb_t, clip.emb = vis["t"], vis["embedding"]
         if str(vis["source"]) != path.name:

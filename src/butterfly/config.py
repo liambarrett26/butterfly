@@ -1,13 +1,16 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 5        # bump to invalidate cached analyses
+CACHE_VERSION = 6        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 VIDEO_EXTS = (".mp4", ".mov", ".m4v")  # video files picked up (case-insensitive); GoPro .LRV are proxies, not clips
 
 # ---------------------------------------------------------------- vision
 VISION_FPS = 2.0         # frames per second sampled for vision
 VISION_WIDTH = 320       # decode width for vision frames
+FLOW_FPS = 6.0           # frames per second for optical flow; a multiple of VISION_FPS (one decode serves both)
+FLOW_WIDTH = 160         # optical-flow frame width (px); motion is reported in frame-widths per second
+FLOW_PAN_S = 1.0         # s; camera motion smoother than this is a deliberate pan or ride, not shake
 CLIP_MODEL = "ViT-B-32"
 CLIP_PRETRAINED = "laion2b_s34b_b79k"
 CLIP_BATCH = 64
@@ -60,6 +63,10 @@ INTEREST_WEIGHTS = {
     "action": 0.8,       # smooth speed + turns (never shake)
     "audio": 0.4,        # loudness peaks above rolling baseline
     "colour": 0.2,       # colourfulness
+    # Subject motion (optical flow left after removing camera motion) is computed and cached, but
+    # off: on real footage it mostly measures parallax, water and things fixed to the camera (a
+    # boat's bow, legs), so it rewarded a boat ride over people floating. Revisit with v0.7 people detection.
+    "subject": 0.0,
     "water": 0.8,        # entering water (wet mic transition), absolute bump
 }
 
@@ -72,6 +79,9 @@ GATES = {
     "shake_penalty": 0.85,    # max reduction from handling shake (0-1)
     "shake_ride_speed": 3.0,  # m/s; above this, shake is treated as a bumpy ride (softer)
     "shake_ride_factor": 0.4, # how much of the shake penalty still applies while riding
+    "cam_shake_lo": 0.06,     # frame-widths/s of jittery camera motion in the image (optical flow)…
+    "cam_shake_hi": 0.20,     # …where the vision shake penalty starts / is full. Used only without a gyro.
+                              # Stabilised GoPro footage measured p95 0.05–0.10.
     "tumble_deg": 65,         # orientation deviation from the clip's usual attitude
     "tumble_penalty": 0.5,
     "blur_pct": 15,           # sharpness below this folder percentile counts as blurry

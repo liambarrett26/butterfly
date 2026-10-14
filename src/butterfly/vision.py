@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import laplace
+from scipy.ndimage import laplace, uniform_filter1d
 
 from . import config as C
 
@@ -87,6 +87,41 @@ def classic_metrics(frames: np.ndarray, prev_gray: np.ndarray | None):
             "change": change}, gray[-1]
 
 
+# ------------------------------------------------------------------ optical flow
+
+def flow_pairs(frames: np.ndarray, prev: np.ndarray | None):
+    """Optical flow from each frame's predecessor -> ([B, 3] camera dx, dy, subject; px/frame), last grey.
+
+    Camera motion is the median flow vector; subject motion is the 95th percentile of what
+    remains after subtracting it. The clip's first frame has no predecessor and gets zeros.
+    """
+    import cv2
+
+    h = max(2, int(round(C.FLOW_WIDTH * frames.shape[1] / frames.shape[2])))
+    out = np.zeros((len(frames), 3), np.float32)
+    for i, f in enumerate(frames):
+        g = cv2.resize(cv2.cvtColor(f, cv2.COLOR_RGB2GRAY), (C.FLOW_WIDTH, h), interpolation=cv2.INTER_AREA)
+        if prev is not None:
+            fl = cv2.calcOpticalFlowFarneback(prev, g, None, 0.5, 3, 13, 3, 5, 1.1, 0)
+            cam = np.median(fl.reshape(-1, 2), axis=0)
+            out[i] = (cam[0], cam[1], np.percentile(np.linalg.norm(fl - cam, axis=2), 95))
+        prev = g
+    return out, prev
+
+
+def motion_features(flow: np.ndarray, fps: float) -> dict:
+    """Per-frame flow -> camera_shake and subject_motion, both in frame-widths per second.
+
+    Shake is the jittery part of camera motion: the camera velocity minus its own
+    FLOW_PAN_S moving average, so smooth pans and rides don't count (like the gyro high-pass).
+    """
+    v = flow[:, :2] * fps / C.FLOW_WIDTH
+    pan = uniform_filter1d(v, size=max(int(C.FLOW_PAN_S * fps), 1), axis=0, mode="nearest")
+    jitter2 = ((v - pan) ** 2).sum(axis=1)
+    shake = np.sqrt(np.clip(uniform_filter1d(jitter2, size=max(int(0.5 * fps), 1), mode="nearest"), 0, None))
+    return {"camera_shake": shake, "subject_motion": flow[:, 2] * fps / C.FLOW_WIDTH}
+
+
 # ------------------------------------------------------------------ CLIP
 
 class ClipScorer:
@@ -151,17 +186,28 @@ class ClipScorer:
 # ------------------------------------------------------------------ per clip
 
 def analyse_vision(path: Path, scorer: ClipScorer | None) -> dict:
-    """Sample frames at VISION_FPS -> {'t': times, metric: array, 'embedding': [N,D]}."""
+    """One decode at FLOW_FPS: optical flow on every frame, metrics and CLIP on every k-th (VISION_FPS).
+
+    -> {'t': times, metric: array, 'embedding': [N, D], 'flow_t': times, 'camera_shake', 'subject_motion'}
+    """
     src = proxy_for(path) or path
-    parts, prev = [], None
-    for times, frames in iter_frames(src, C.VISION_FPS, C.VISION_WIDTH, C.CLIP_BATCH):
-        m, prev = classic_metrics(frames, prev)
-        m["t"] = times
+    k = max(int(round(C.FLOW_FPS / C.VISION_FPS)), 1)
+    parts, flows, flow_t, prev, prev_small, idx = [], [], [], None, None, 0
+    for times, frames in iter_frames(src, C.VISION_FPS * k, C.VISION_WIDTH, C.CLIP_BATCH * k):
+        fl, prev_small = flow_pairs(frames, prev_small)
+        flows.append(fl)
+        flow_t.append(times)
+        keep = (np.arange(idx, idx + len(frames)) % k) == 0
+        idx += len(frames)
+        m, prev = classic_metrics(frames[keep], prev)
+        m["t"] = times[keep]
         if scorer is not None:
-            m.update(scorer.score(frames))
+            m.update(scorer.score(frames[keep]))
         parts.append(m)
     if not parts:
         return {}
-    out = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
+    out = {key: np.concatenate([p[key] for p in parts]) for key in parts[0]}
+    out["flow_t"] = np.concatenate(flow_t)
+    out.update(motion_features(np.concatenate(flows), C.VISION_FPS * k))
     out["source"] = np.array(src.name)
     return out
