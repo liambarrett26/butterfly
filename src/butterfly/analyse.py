@@ -37,6 +37,7 @@ class Clip:
     interest: np.ndarray | None = None
     score: np.ndarray | None = None
     parts: dict = field(default_factory=dict)       # interest components (weighted)
+    raw: dict = field(default_factory=dict)         # the same components before weighting (ranker features)
     gates: dict = field(default_factory=dict)       # quality multipliers per gate
 
     @property

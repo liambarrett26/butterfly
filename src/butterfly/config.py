@@ -91,6 +91,12 @@ INTEREST_WEIGHTS = {
     "water": 0.8,        # entering water (wet mic transition), absolute bump
 }
 
+# ---------------------------------------------------------------- learned ranker (butterfly-train)
+RANKER_WINDOW_S = 2.5    # labelled video ranges are cut into windows this long…
+RANKER_STRIDE_S = 1.0    # …every this many seconds
+RANKER_L2 = 1.0          # ridge penalty on the standardised logistic-regression coefficients
+RANKER_PRIOR = 20        # labels' pull: alpha = items / (items + this) blends learned into hand weights
+
 # ---------------------------------------------------------------- quality gates
 GATES = {
     "drop_accel": 3.0,        # m/s², |accel| below this = free-fall
