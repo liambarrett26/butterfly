@@ -44,6 +44,9 @@ def _timeline(c, picks, out: Path) -> None:
     ax.plot(t, c.score, color="#2f6fdb", lw=1.4, label="score")
     for s, e in c.events.get("drops", []):
         ax.axvspan(s, e, color="#d64545", alpha=0.6)
+    from .select_moments import shots
+    for s, _ in (shots(c) or [])[1:]:
+        ax.axvline(s, color="#6b6b70", ls=":", lw=1)
     for p in picks:
         if p.clip is c:
             ax.axvspan(p.start, p.start + p.src_dur, color="#2e9e5b", alpha=0.25)
@@ -146,7 +149,7 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
 <h2>Picks</h2><div class="grid">{''.join(cards)}</div>
 <h2>Clips</h2>
 <div class="muted" style="margin-bottom:10px">Blue = score, grey line = interest, grey fill = quality,
-green = picked, red = drop (free-fall).</div>
+green = picked, red = drop (free-fall), dotted = shot boundary (at most one pick per shot).</div>
 {''.join(sections)}
 {photos_html}
 {devices_html}

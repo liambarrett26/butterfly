@@ -494,6 +494,33 @@ def people_checks() -> dict:
     }
 
 
+def shot_checks() -> dict:
+    """A clip whose CLIP embedding changes at 10 s: two shots, one pick per shot, relaxed to fill."""
+    from datetime import datetime
+
+    from butterfly.analyse import Clip
+    from butterfly.select_moments import shots
+
+    rng = np.random.default_rng(3)
+    a, b = rng.normal(size=64), rng.normal(size=64)
+    emb = np.array([(a if i < 20 else b) + rng.normal(scale=0.05, size=64) for i in range(40)])
+    c = Clip(Path("scenes.mp4"), 20.0, datetime(2026, 1, 1), True, 30.0)
+    c.emb_t, c.emb = np.arange(40) / 2.0, (emb / np.linalg.norm(emb, axis=1, keepdims=True)).astype(np.float16)
+    c.q = np.ones(c.n)
+    c.score = np.where(np.arange(c.n) < 100, 2.0, 1.0)            # scene A scores twice as high
+    c.parts, c.gates = {"x": c.score}, {"q": c.q}
+    bounds = shots(c)
+    two = select([c], [2.5, 2.5])
+    three = select([c], [2.5, 2.5, 2.5])
+    side = lambda p: p.start + p.dur / 2 >= 10
+    return {
+        "shots: one boundary where the scene changes": bounds is not None and len(bounds) == 2
+                                                       and abs(bounds[0][1] - 10) <= 1.0,
+        "shots: one pick per shot when there's a choice": sorted(map(side, two)) == [False, True],
+        "shots: the limit relaxes to fill the reel": len(three) == 3,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -531,6 +558,7 @@ def main() -> int:
         **slowmo_checks(),
         **audio_event_checks(),
         **people_checks(),
+        **shot_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),
