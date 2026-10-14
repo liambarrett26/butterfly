@@ -2,20 +2,22 @@
 
 [![tests](https://github.com/liambarrett26/butterfly/actions/workflows/tests.yml/badge.svg)](https://github.com/liambarrett26/butterfly/actions/workflows/tests.yml)
 
-**Local highlight reels from GoPro footage.**
+**Local highlight reels from your holiday footage.**
 
-Butterfly turns a folder of GoPro clips into a short highlight reel on your own
-Mac. It reads the telemetry the camera records inside every file (motion,
-orientation, GPS), listens to the audio, and looks at the frames with an
-on-device vision model. From that it picks the best moments and cuts them
-together, optionally on the beat of a song.
+Butterfly turns a folder of clips into a short highlight reel on your own Mac.
+It looks at the frames with on-device vision models and listens to the audio.
+GoPro clips also carry telemetry (motion, orientation, GPS), which Butterfly
+reads too. From all that it picks the best moments and cuts them together,
+optionally on the beat of a song. GoPro and phone videos work today; photos
+are planned.
 
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.2).** The pipeline runs end-to-end and passes
-> its synthetic test suite. It has **not yet been tuned on real footage**. See
-> [Project status](#project-status).
+> **Status: early development (v0.3).** The pipeline runs end-to-end, passes
+> its synthetic test suite, and has been tuned with CLIP on one real GoPro
+> trip. Phone video is supported, but not yet tested on real phone footage.
+> See [Project status](#project-status).
 
 ---
 
@@ -102,8 +104,10 @@ dull instead of being stretched to look exciting.
   on CPU but are untested.
 - Python 3.12+
 - ffmpeg (`brew install ffmpeg`)
-- A GoPro **HERO5 or later**, since earlier models don't record telemetry.
-  Developed against a **HERO13 Black**.
+- Footage: `.mp4`, `.mov` or `.m4v` from any camera or phone. GoPro
+  **HERO5 or later** adds telemetry (drops, gyro shake, speed). Butterfly was
+  developed against a **HERO13 Black**. Without telemetry, shake is detected
+  from the image.
 
 ## Installation
 
@@ -310,7 +314,7 @@ two clips.
 - [x] Analysis cache, LRV proxy support, HTML report
 - [x] Synthetic regression suite
 
-### v0.2.x — repository setup
+### v0.2.x — repository setup ✅
 - [x] `pyproject.toml` with a `butterfly` console command and pinned dependencies
 - [x] GitHub Actions running the synthetic suite (`--no-clip`) on every PR
 - [x] Licence (MIT)
@@ -383,50 +387,32 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Imported the v0.2 code into the repository root; `.gitignore` now covers
-  Butterfly's outputs and footage. Install steps use a dedicated conda
-  environment, and Pillow is no longer listed (nothing imports it).
-- Licence confirmed as MIT.
-- Packaged as `butterfly` (`src/butterfly/`, `pyproject.toml`): install with
-  `python -m pip install -e ".[all]"` and run `butterfly <folder>`.
-  Dependencies are pinned exactly, which raises the minimum to Python 3.12.
-  matplotlib is now a core dependency; `vision` and `music` are extras.
-  `python reel.py` still works.
-- CI: GitHub Actions runs the synthetic test suite on Ubuntu (Python 3.12,
-  core dependencies, no torch) on every push and pull request.
-- The analysis cache and HTML report now live in `<folder>/.butterfly/cache/`
-  and `<folder>/.butterfly/report/`. The reel stays at
-  `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
-- Issue templates (bug report, roadmap item) and a pull request template.
-- Roadmap: footage from any source (phone videos, other cameras, photos),
-  replacing "other action cameras".
-- Optical flow (OpenCV, now a core dependency): footage without telemetry,
-  such as phone video, gets a camera-shake gate from the image itself. Smooth
-  pans don't count as shake. Subject motion is computed but its interest
-  weight is 0, because on a real trip it rewarded a boat ride (parallax, the
-  bow, water) over people floating. One decode now serves both flow (6 fps)
-  and the existing 2 fps metrics. `CACHE_VERSION` is now 6.
-- Phone video: `.MOV` and `.m4v` files are now picked up as well as `.mp4`,
-  and rotated (portrait) clips are analysed at the right aspect instead of
-  squashed. `CACHE_VERSION` is now 5.
-- Roadmap reordered: v0.4 is now "any video" (`.MOV`, rotation, optical-flow
-  shake gate, portrait fill), and v0.5 is photos, with a design in
-  `docs/design/any-footage.md`. The later milestones move up by two. Music
-  becomes on by default (later): the user's own song or set, or bundled free
-  tracks chosen by vibe.
-- Removed HiLight tag support (the `hilight` interest part, its settings, and
-  the report markers). Butterfly is fully automatic and shouldn't depend on
-  a GoPro-only feature. `CACHE_VERSION` is now 4, so the first run
-  re-analyses.
-- Tuned on a real trip with CLIP. New prompts reward people floating and
-  selfies; a new "murky underwater view" prompt marks cloudy underwater
-  footage as unusable; the aesthetic baseline is now "a boring, badly framed
-  photo of nothing in particular". A clip may take at most one cut beyond its
-  even share of the reel (new `PICKS_PER_CLIP_SLACK`, previously a fixed 2).
-  `CACHE_VERSION` is now 3, so the first run re-analyses.
-
+- **0.3.0** (2026-10-14): Real-footage tuning, a proper package, and the
+  first steps beyond GoPro.
+  - **Package and tooling:**
+    - installable package `butterfly` (`src/butterfly/`, `pyproject.toml`,
+      exact pins, Python 3.12+) with a `butterfly` command; `python reel.py`
+      still works;
+    - GitHub Actions CI;
+    - issue and PR templates;
+    - MIT licence.
+  - **Outputs:** the cache and report now live in `<folder>/.butterfly/`. The
+    reel stays at `<folder>/highlights.mp4`.
+  - **Tuning (CLIP, real HERO13 trip):**
+    - murky underwater footage is gated by a new negative prompt;
+    - new prompts for people and selfies;
+    - a fairer aesthetic baseline;
+    - at most one cut per clip beyond an even share (`PICKS_PER_CLIP_SLACK`).
+  - **Any video:**
+    - `.MOV`/`.m4v` are picked up, and rotated (portrait) clips are analysed
+      upright;
+    - optical flow (OpenCV) gives footage without telemetry a camera-shake
+      gate; smooth pans don't count. Subject motion is computed but off,
+      because on real footage it measured parallax and water.
+  - **Removed:** HiLight tag support. Butterfly is fully automatic.
+  - **Roadmap:** v0.4 is "any video" and v0.5 is photos (design in
+    `docs/design/any-footage.md`). Music will be on by default.
+  - `CACHE_VERSION` is 6, so the first run re-analyses everything.
 - **0.2.2** (2026-10-13): Project renamed **Butterfly** and set up as a GitHub
   repository; README rewritten with a development workflow and versioned
   roadmap.
