@@ -24,6 +24,13 @@ from .score import compute
 from .select_moments import plan_durations, select
 
 
+def find_videos(folder: Path) -> list[Path]:
+    """Video files in the folder (not recursive), skipping macOS ._ files and our own reels."""
+    return sorted(p for p in folder.iterdir()
+                  if p.is_file() and p.suffix.lower() in C.VIDEO_EXTS
+                  and not p.name.startswith(("._", "highlights")))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="butterfly", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -51,10 +58,9 @@ def main() -> None:
             sys.exit(f"{tool} not found — install with `brew install ffmpeg`")
 
     folder = args.folder.expanduser()
-    files = sorted(p for p in folder.iterdir()
-                   if p.suffix.lower() == ".mp4" and not p.name.startswith(("._", "highlights")))
+    files = find_videos(folder)
     if not files:
-        sys.exit(f"No MP4 files in {folder}")
+        sys.exit(f"No videos ({', '.join(C.VIDEO_EXTS)}) in {folder}")
     out = (args.out or folder / "highlights.mp4").expanduser()
     work = folder / C.OUTPUT_DIR  # cache/ and report/; an old .reel_cache/ is left alone
 

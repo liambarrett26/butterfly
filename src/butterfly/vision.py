@@ -29,11 +29,19 @@ def proxy_for(path: Path) -> Path | None:
 
 
 def _dims(path: Path) -> tuple[int, int]:
+    """Display (width, height): the stored size, swapped when the video is rotated by ±90°.
+
+    ffmpeg auto-rotates when decoding, so frames come out at the display size.
+    """
     out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
-                          "stream=width,height", "-of", "json", str(path)],
+                          "stream=width,height:stream_tags=rotate:stream_side_data=rotation",
+                          "-of", "json", str(path)],
                          capture_output=True, text=True, check=True).stdout
     s = json.loads(out)["streams"][0]
-    return int(s["width"]), int(s["height"])
+    w, h = int(s["width"]), int(s["height"])
+    rot = next((sd["rotation"] for sd in s.get("side_data_list", []) if "rotation" in sd),
+               s.get("tags", {}).get("rotate", 0))       # side data (ffmpeg ≥ 5), or legacy tag
+    return (h, w) if round(float(rot)) % 180 == 90 else (w, h)
 
 
 def iter_frames(path: Path, fps: float, width: int, batch: int):

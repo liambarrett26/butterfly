@@ -1,8 +1,9 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 4        # bump to invalidate cached analyses
+CACHE_VERSION = 5        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
+VIDEO_EXTS = (".mp4", ".mov", ".m4v")  # video files picked up (case-insensitive); GoPro .LRV are proxies, not clips
 
 # ---------------------------------------------------------------- vision
 VISION_FPS = 2.0         # frames per second sampled for vision

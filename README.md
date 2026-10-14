@@ -55,7 +55,7 @@ with the camera hitting the sand doesn't make the reel.
 ### Pipeline
 
 ```
- folder of GX*.MP4
+ folder of videos (.mp4 .mov .m4v)
         │
         ├── telemetry (GPMF) ─── accel · gyro · gravity · GPS9 · wet-mic
         │     └─ drops (free-fall), handling shake, tumble, smooth turns, speed, water entry
@@ -259,7 +259,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (15 / 15 checks
+Tested end-to-end on synthetic clips with injected telemetry (17 / 17 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -272,6 +272,7 @@ passing, also in CI):
 | Dark section | penalised | q < 0.7 |
 | Render + report | full-length reel, thumbnails, timelines | ✓ |
 | CLI dry run | cache and report in `.butterfly/`, old `.reel_cache/` untouched | ✓ |
+| Phone-style `.MOV`, rotated 90° | picked up, analysed as portrait | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
@@ -322,7 +323,7 @@ two clips.
 
 ### v0.4 — any video
 Design: [docs/design/any-footage.md](docs/design/any-footage.md)
-- [ ] Pick up `.MOV` / `.m4v` files and honour rotation metadata
+- [x] Pick up `.MOV` / `.m4v` files and honour rotation metadata
 - [ ] Optical flow: a vision-based camera-shake gate for footage without
   telemetry, and subject motion as interest
 - [ ] Portrait clips in a landscape reel: a blurred fill instead of black bars
@@ -398,6 +399,9 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - Issue templates (bug report, roadmap item) and a pull request template.
 - Roadmap: footage from any source (phone videos, other cameras, photos),
   replacing "other action cameras".
+- Phone video: `.MOV` and `.m4v` files are now picked up as well as `.mp4`,
+  and rotated (portrait) clips are analysed at the right aspect instead of
+  squashed. `CACHE_VERSION` is now 5.
 - Roadmap reordered: v0.4 is now "any video" (`.MOV`, rotation, optical-flow
   shake gate, portrait fill), and v0.5 is photos, with a design in
   `docs/design/any-footage.md`. The later milestones move up by two. Music

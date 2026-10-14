@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))  # works with or without `pip install -e .
 from butterfly import analyse  # noqa: E402
 from butterfly import cli  # noqa: E402
 from butterfly import config as C  # noqa: E402
+from butterfly import vision  # noqa: E402
 from butterfly.score import compute  # noqa: E402
 from butterfly.select_moments import plan_durations, select  # noqa: E402
 
@@ -64,6 +65,14 @@ def make_clips() -> None:
     for name, args in specs.items():
         if not (DATA / name).exists():
             subprocess.run(ff + args + enc + [str(DATA / name)], check=True)
+    # phone-style portrait clip: stored 640x360 with a 90° display rotation, as a .MOV
+    rot = DATA / "IMG_0001.MOV"
+    if not rot.exists():
+        tmp = DATA / "_landscape.mp4"
+        subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=3"]
+                       + enc[:4] + [str(tmp)], check=True)
+        subprocess.run(ff + ["-display_rotation", "90", "-i", str(tmp), "-c", "copy", str(rot)], check=True)
+        tmp.unlink()
 
 
 def fake_telemetry(path: Path) -> dict:
@@ -112,6 +121,12 @@ def cli_outputs() -> dict:
     }
 
 
+def rotated_portrait() -> bool:
+    """Frames from a ±90°-rotated clip must come out portrait (taller than wide)."""
+    _, frames = next(vision.iter_frames(DATA / "IMG_0001.MOV", 2.0, 160, 4))
+    return frames.shape[1] > frames.shape[2]
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -138,6 +153,8 @@ def main() -> int:
             not (p.clip is c2 and p.start < 7.8 and p.start + p.dur > 2.2) for p in picks),
         "riding moment picked": any(p.clip is c1 and 5 <= p.start + p.dur / 2 <= 15 for p in picks),
         f"no clip takes more than {cap} cuts": all(sum(p.clip is c for p in picks) <= cap for c in clips),
+        ".MOV videos are picked up": any(p.name == "IMG_0001.MOV" for p in cli.find_videos(DATA)),
+        "rotated clip analysed as portrait": rotated_portrait(),
         **cli_outputs(),
     }
     for name, ok in checks.items():
