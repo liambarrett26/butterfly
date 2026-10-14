@@ -92,6 +92,33 @@ def candidates(c: Clip, L: float) -> list[Pick]:
 
 # ------------------------------------------------------------------ selection
 
+def shots(c: Clip) -> list[tuple[float, float]] | None:
+    """Shots in a clip, as (start, end) seconds, split where the CLIP embedding changes sharply.
+
+    Novelty at a frame is 1 − cosine between the mean embedding of the SHOT_WINDOW_S before and
+    after it. Local peaks ≥ SHOT_NOVELTY at least SHOT_MIN_S from the previous boundary (and the
+    clip's end) are boundaries. None without embeddings (no shot limit then).
+    """
+    if c.kind != "video" or c.emb is None or len(c.emb) < 3:
+        return None
+    e = c.emb.astype(np.float32)
+    e /= np.linalg.norm(e, axis=1, keepdims=True) + 1e-9
+    fps = (len(e) - 1) / max(float(c.emb_t[-1] - c.emb_t[0]), 1e-6)
+    w = max(int(round(C.SHOT_WINDOW_S * fps)), 1)
+    cs = np.vstack([np.zeros(e.shape[1], np.float32), np.cumsum(e, axis=0)])
+    nov = np.zeros(len(e))
+    for i in range(w, len(e) - w + 1):
+        a, b = cs[i] - cs[i - w], cs[i + w] - cs[i]
+        nov[i] = 1 - float(a @ b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9)
+    cuts = [0.0]
+    for i in range(1, len(nov) - 1):
+        t = float(c.emb_t[i])
+        if (nov[i] >= C.SHOT_NOVELTY and nov[i] >= nov[i - 1] and nov[i] >= nov[i + 1]
+                and t - cuts[-1] >= C.SHOT_MIN_S and c.duration - t >= C.SHOT_MIN_S):
+            cuts.append(t)
+    return list(zip(cuts, cuts[1:] + [c.duration]))
+
+
 def photo_candidate(c: Clip, L: float) -> Pick | None:
     """A usable photo as one candidate cut (start 0, a slot of length L); None if gated or a burst duplicate."""
     if float(c.q[0]) < C.GATES["window_min_q"] or c.info.get("burst_of"):
@@ -204,17 +231,30 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
     max_photos = n_seg if photos == "only" else int(C.MAX_PHOTO_SHARE * n_seg)
     top = max(p.score for p in pool) or 1.0
 
+    shot_of = {}                                             # candidate -> (clip, shot index)
+    for c in videos:
+        bounds = shots(c)
+        for p in (q for q in pool if q.clip is c and bounds):
+            mid = p.start + p.dur / 2
+            shot_of[id(p)] = (id(c), next((i for i, (a, b) in enumerate(bounds) if a <= mid < b), len(bounds) - 1))
+
     chosen: list[Pick] = []
     per_clip: dict[Path, int] = {}
+    per_shot: dict[tuple, int] = {}
+    shot_cap = 1                                             # one pick per shot, relaxed if the reel can't fill
     n_photos = 0
     remaining = list(pool)
     while remaining and len(chosen) < n_seg:
         best, best_val = None, -np.inf
+        blocked = False
         for p in remaining:
             if p.clip.kind == "photo":
                 if n_photos >= max_photos:
                     continue
             elif per_clip.get(p.clip.path, 0) >= cap:
+                continue
+            elif id(p) in shot_of and per_shot.get(shot_of[id(p)], 0) >= shot_cap:
+                blocked = True
                 continue
             red = 0.0
             if p.emb is not None:
@@ -224,6 +264,9 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
             if val > best_val:
                 best, best_val = p, val
         if best is None:
+            if blocked:
+                shot_cap += 1
+                continue
             break
         remaining.remove(best)
         if best.clip.kind == "photo":
@@ -237,6 +280,8 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
         chosen.append(best)
         n_photos += best.clip.kind == "photo"
         per_clip[best.clip.path] = per_clip.get(best.clip.path, 0) + 1
+        if id(best) in shot_of:
+            per_shot[shot_of[id(best)]] = per_shot.get(shot_of[id(best)], 0) + 1
 
     chosen.sort(key=lambda p: (moment(p), p.clip.path.name))
     for p, d in zip(chosen, durations):
