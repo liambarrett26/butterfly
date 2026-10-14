@@ -32,6 +32,7 @@ from butterfly import analyse  # noqa: E402
 from butterfly import cli  # noqa: E402
 from butterfly import config as C  # noqa: E402
 from butterfly.evaluate import evaluate, load_labels  # noqa: E402
+from butterfly.photos import find_photos  # noqa: E402
 from butterfly import vision  # noqa: E402
 from butterfly.score import compute  # noqa: E402
 from butterfly.render import fit_graph, render  # noqa: E402
@@ -211,6 +212,58 @@ def label_checks(clips, picks) -> dict:
     }
 
 
+PHOTOS = DATA / "photos"
+
+
+def make_photos() -> None:
+    """Five synthetic photos: sharp ×2, blurred, dark, and an EXIF-rotated one with time + offset."""
+    from PIL import Image, ImageFilter
+
+    PHOTOS.mkdir(exist_ok=True)
+
+    def texture(seed):
+        r = np.random.default_rng(seed)
+        a = r.integers(0, 256, (54, 80, 3), dtype=np.uint8)            # blocky detail, upscaled sharply
+        return Image.fromarray(a).resize((640, 432), Image.NEAREST).filter(ImageFilter.GaussianBlur(1))
+
+    if not (PHOTOS / "photo_a.jpg").exists():
+        im = texture(2)
+        exif = Image.Exif()
+        exif[0x0112] = 6                                                    # rotate 90° on display -> portrait
+        sub = exif.get_ifd(0x8769)
+        sub[0x9003] = "2026:10:10 12:35:26"                                 # DateTimeOriginal (local)
+        sub[0x9011] = "+02:00"                                              # OffsetTimeOriginal
+        im.save(PHOTOS / "photo_a.jpg", exif=exif, quality=92)
+        texture(3).save(PHOTOS / "IMG_20261010_140000.jpg", quality=92)    # no EXIF: time from the name
+        texture(4).save(PHOTOS / "photo_b.jpg", quality=92)
+        texture(5).filter(ImageFilter.GaussianBlur(12)).save(PHOTOS / "photo_blurred.jpg", quality=92)
+        Image.fromarray((np.asarray(texture(6)) * 0.08).astype(np.uint8)).save(PHOTOS / "photo_dark.jpg", quality=92)
+
+
+def photo_checks() -> dict:
+    from datetime import datetime
+
+    make_photos()
+    found = find_photos(PHOTOS)
+    with contextlib.redirect_stdout(io.StringIO()):
+        items = cli.analyse_folder(PHOTOS, [], None, "test", True, True, found)
+    compute(items)
+    ph = {c.path.name: c for c in items}
+    q = lambda n: float(ph[n].q[0])
+    r = evaluate(items, [], [{"clip": "photo_b.jpg", "label": "good"},
+                             {"clip": "photo_blurred.jpg", "label": "unusable"}])
+    return {
+        "photos picked up (5)": len(found) == 5 and all(c.kind == "photo" for c in items),
+        "sharp photos usable (q > 0.9)": min(q("photo_a.jpg"), q("photo_b.jpg"), q("IMG_20261010_140000.jpg")) > 0.9,
+        "blurred photo gated": q("photo_blurred.jpg") < C.GATES["window_min_q"],
+        "dark photo penalised (q < 0.7)": q("photo_dark.jpg") < 0.7,
+        "EXIF orientation gives a portrait photo": ph["photo_a.jpg"].size[1] > ph["photo_a.jpg"].size[0],
+        "EXIF time + offset -> UTC": ph["photo_a.jpg"].created == datetime(2026, 10, 10, 10, 35, 26),
+        "file-name time takes the folder's offset": ph["IMG_20261010_140000.jpg"].created == datetime(2026, 10, 10, 12, 0, 0),
+        "labels: photo rows, no violations": "good photos" in r["rows"] and not r["violations"],
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -240,6 +293,8 @@ def main() -> int:
         ".MOV videos are picked up": any(p.name == "IMG_0001.MOV" for p in cli.find_videos(DATA)),
         "rotated clip analysed as portrait": rotated_portrait(),
         **label_checks(clips, picks),
+        **photo_checks(),
+        "photos stay out of the reel (for now)": all(p.clip.kind == "video" for p in picks),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

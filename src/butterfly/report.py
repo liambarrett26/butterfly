@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config as C
-from .score import unusable_fraction
+from .score import unusable_fraction, why
 
 
 def _thumb(p, out: Path) -> bool:
@@ -18,6 +18,17 @@ def _thumb(p, out: Path) -> bool:
                         "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", str(out)],
                        capture_output=True)
     return r.returncode == 0 and out.exists()
+
+
+def _photo_thumb(path: Path, out: Path) -> bool:
+    from .photos import open_photo
+    try:
+        im, _ = open_photo(path)
+        im.thumbnail((480, 480))
+        im.save(out, quality=85)
+        return True
+    except Exception:
+        return False
 
 
 def _timeline(c, picks, out: Path) -> None:
@@ -60,6 +71,7 @@ h1{font-size:24px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 12px}
 .card .b{padding:10px 12px;font-size:13px}.card .t{font-weight:600}
 .clip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px}
 .clip img{width:100%;height:auto;background:#fff;border-radius:6px}
+.card.gated{opacity:.55}.card .bad{color:#d64545;font-weight:600}
 .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);margin-right:6px}
 """
 
@@ -75,8 +87,23 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
             f'<div class="t">#{i} · {html.escape(p.clip.path.name)} · {p.start:.1f}–{p.start + p.dur:.1f}s</div>'
             f'<div class="muted">score {p.score:.2f}</div><div>{html.escape(p.reasons)}</div></div></div>')
 
+    photo_cards = []
+    for c in sorted((c for c in clips if c.kind == "photo"), key=lambda c: -float(c.score[0])):
+        img = out_dir / f"photo_{c.path.stem}.jpg"
+        src = img.name if _photo_thumb(c.path, img) else ""
+        gated = float(c.q[0]) < C.GATES["window_min_q"]
+        when = c.created.strftime("%Y-%m-%d %H:%M") + " UTC"
+        photo_cards.append(
+            f'<div class="card{" gated" if gated else ""}"><img src="{src}" alt=""><div class="b">'
+            f'<div class="t">{html.escape(c.path.name)}</div>'
+            f'<div class="muted">q {float(c.q[0]):.2f} · score {float(c.score[0]):.2f} · {html.escape(when)}</div>'
+            + ('<div class="bad">gated: not usable</div>' if gated else "")
+            + f'<div>{html.escape(why(c, 0, 1))}</div>'
+            + (f'<div class="muted">{html.escape("; ".join(c.notes))}</div>' if c.notes else "")
+            + '</div></div>')
+
     sections = []
-    for c in clips:
+    for c in (c for c in clips if c.kind == "video"):
         img = out_dir / f"timeline_{c.path.stem}.png"
         _timeline(c, picks, img)
         n_picks = sum(p.clip is c for p in picks)
@@ -90,16 +117,20 @@ def write_report(clips, picks, folder: Path, out_dir: Path, settings: str) -> Pa
             + f'</div>{notes}<img src="{img.name}" alt="timeline"></div>')
 
     total = sum(p.dur for p in picks)
+    photos_html = (f'<h2>Photos</h2><div class="muted" style="margin-bottom:10px">Best first. '
+                   f'Faded = gated (blurred, dark, blown or unusable). Photos join the reel in a later version.</div>'
+                   f'<div class="grid">{"".join(photo_cards)}</div>') if photo_cards else ""
     page = f"""<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Highlight report</title>
 <style>{CSS}</style></head><body><main>
 <h1>Highlight report</h1>
-<div class="muted">{html.escape(str(folder))} · {len(clips)} clips · {len(picks)} cuts · {total:.1f}s · {html.escape(settings)}</div>
+<div class="muted">{html.escape(str(folder))} · {sum(c.kind == "video" for c in clips)} clips · {len(photo_cards)} photos · {len(picks)} cuts · {total:.1f}s · {html.escape(settings)}</div>
 <h2>Picks</h2><div class="grid">{''.join(cards)}</div>
 <h2>Clips</h2>
 <div class="muted" style="margin-bottom:10px">Blue = score, grey line = interest, grey fill = quality,
 green = picked, red = drop (free-fall).</div>
 {''.join(sections)}
+{photos_html}
 </main></body></html>"""
     index = out_dir / "index.html"
     index.write_text(page)

@@ -158,7 +158,7 @@ class ClipScorer:
 
     def _prep(self, frames: np.ndarray):
         torch = self.torch
-        x = torch.from_numpy(frames).to(self.device).permute(0, 3, 1, 2).float() / 255.0
+        x = torch.from_numpy(np.array(frames)).to(self.device).permute(0, 3, 1, 2).float() / 255.0
         h, w = x.shape[-2:]
         s = self.size / min(h, w)
         x = torch.nn.functional.interpolate(x, size=(max(self.size, round(h * s)), max(self.size, round(w * s))),

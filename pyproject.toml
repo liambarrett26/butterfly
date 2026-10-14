@@ -18,12 +18,14 @@ dependencies = [
     "scipy==1.18.1",
     "matplotlib==3.11.2",
     "opencv-python-headless==4.14.0.94",
+    "pillow==12.3.0",
 ]
 
 [project.optional-dependencies]
 vision = ["torch==2.14.1", "open_clip_torch==3.3.0"]
 music = ["librosa==1.0.0"]
-all = ["butterfly[vision,music]"]
+photos = ["pillow-heif==1.8.1"]
+all = ["butterfly[vision,music,photos]"]
 
 [project.scripts]
 butterfly = "butterfly.cli:main"

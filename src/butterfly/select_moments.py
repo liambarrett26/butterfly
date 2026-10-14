@@ -87,6 +87,7 @@ def candidates(c: Clip, L: float) -> list[Pick]:
 
 def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVERSITY) -> list[Pick]:
     L = float(np.median(durations))
+    clips = [c for c in clips if c.kind == "video"]          # photos join selection in v0.5 step 2
     pool = [p for c in clips for p in candidates(c, L)]
     if not pool:
         return []

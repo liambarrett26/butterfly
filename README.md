@@ -94,6 +94,7 @@ with the camera hitting the sand doesn't make the reel.
 | Audio peaks | loudness above a 5 s rolling median | interest |
 | Water entry | wet-microphone transitions | interest bump |
 | Colourfulness | Hasler–Süsstrunk metric | small interest term |
+| Photo blur | sharpness against the folder's median photo, at 640 px | gate (photos) |
 
 All signals are normalised **across the whole folder**, so a dull clip stays
 dull instead of being stretched to look exciting.
@@ -270,7 +271,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (27 / 27 checks
+Tested end-to-end on synthetic clips with injected telemetry (36 / 36 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -286,6 +287,7 @@ passing, also in CI):
 | Phone-style `.MOV`, rotated 90° | picked up, analysed as portrait | ✓ |
 | No telemetry: handheld shake / smooth pan / static | shake penalised; pan and static not | ✓ |
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
+| Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
 files with a separate probe script.
@@ -347,7 +349,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md)
 
 ### v0.5 — photos
 Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v05)
-- [ ] Discover and analyse photos (JPEG, PNG, HEIC): quality, CLIP, EXIF time
+- [x] Discover and analyse photos (JPEG, PNG, HEIC): quality, CLIP, EXIF time
   and orientation, with a photos section in the report
 - [ ] Photos in the reel: one selection pool with video, a cap on the photo
   share, gentle Ken Burns motion, a blurred fill for portrait shots, and
@@ -394,6 +396,17 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Photos (`.jpg .jpeg .png .heic .heif`) in the folder are analysed: EXIF
+  orientation, capture time (EXIF time and offset, then a timestamp in the
+  file name, then the file date), quality (blur against the folder's other
+  photos, exposure, CLIP "unusable") and CLIP interest. The report gets a
+  Photos section, best first, with gated photos faded. Photos aren't in the
+  reel yet. HEIC needs the new `photos` extra (`pillow-heif`), and Pillow is a
+  core dependency again. The cache key now includes the file extension, so
+  `CACHE_VERSION` is 7.
 
 - **0.4.0** (2026-10-14): Any video. Completes the v0.4 milestone; the
   `.MOV`/rotation support and optical-flow shake gate shipped in 0.3.0.

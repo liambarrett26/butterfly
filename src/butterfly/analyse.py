@@ -28,6 +28,9 @@ class Clip:
     emb: np.ndarray | None = None                   # [N, D] float16 CLIP embeddings
     events: dict = field(default_factory=dict)      # drops, water_entries
     notes: list = field(default_factory=list)
+    kind: str = "video"                             # "video" or "photo" (a photo is one frame, duration 0)
+    size: tuple | None = None                       # display (width, height) when known (photos)
+    info: dict = field(default_factory=dict)        # photo capture-time details (local time, offset, source)
     # filled by score.py
     q: np.ndarray | None = None
     interest: np.ndarray | None = None
@@ -62,16 +65,17 @@ def probe(path: Path) -> tuple[float, datetime, bool, float]:
     return dur, created, has_audio, fps
 
 
-def _cache_path(path: Path, cache_dir: Path, tag: str) -> Path:
+def cache_path(path: Path, cache_dir: Path, tag: str) -> Path:
+    """Full file name (so IMG_1.HEIC and IMG_1.MOV don't collide) + size + mtime + version + model tag."""
     st = path.stat()
-    return cache_dir / f"{path.stem}_{st.st_size}_{int(st.st_mtime)}_v{C.CACHE_VERSION}_{tag}.npz"
+    return cache_dir / f"{path.name}_{st.st_size}_{int(st.st_mtime)}_v{C.CACHE_VERSION}_{tag}.npz"
 
 
 def analyse_clip(path: Path, scorer, cache_dir: Path, tag: str, refresh: bool = False,
                  vision: bool = True) -> Clip:
     dur, created, has_audio, fps = probe(path)
     clip = Clip(path, dur, created, has_audio, fps)
-    cache = _cache_path(path, cache_dir, tag)
+    cache = cache_path(path, cache_dir, tag)
 
     if cache.exists() and not refresh:
         z = np.load(cache, allow_pickle=False)
