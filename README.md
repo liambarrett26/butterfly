@@ -14,7 +14,7 @@ are planned.
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.6).** The pipeline runs end-to-end, passes
+> **Status: early development (v0.7).** The pipeline runs end-to-end, passes
 > its synthetic test suite, and has been tuned with CLIP on one real GoPro
 > trip. Phone video is supported, but not yet tested on real phone footage.
 > See [Project status](#project-status).
@@ -377,7 +377,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Smart in/out points: shift cuts off shake and onto motion onsets
 - [x] Slow motion for high-frame-rate clips (≥ 100 fps)
 
-### v0.7 — audio and people
+### v0.7 — audio and people ✅
 - [x] Audio event tagging (laughter, cheering, splash; wind as a gate)
 - [x] Faces and people via Apple Vision, on-device
 
@@ -413,21 +413,19 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Faces and people (optional `people` extra, macOS): Apple's Vision framework
-  detects faces and human bodies on-device, on the analysis frames and
-  photos. The largest face's area and the number of people become interest.
-  On the real trip, the reel picks up the selfies and people moments CLIP
-  missed: good labelled moments picked went from 3/10 to 5/10, with 0
-  violations. `--no-faces` skips it. `CACHE_VERSION` is 10.
-- Audio events (optional `audio` extra): an on-device AudioSet classifier
-  (AST) tags laughter, cheering and splash (interest bumps) and wind noise (a
-  mild gate). Speech is measured too, but off by default (weight 0): on the
-  real trip it only helped at full weight, by one moment. Its first run
-  downloads the model weights. `--no-audio-events` skips it.
-  `CACHE_VERSION` is 9.
-
+- **0.7.0** (2026-10-14): Audio and people.
+  - Faces and people (optional `people` extra, macOS): Apple's Vision framework
+    detects faces and human bodies on-device, on the analysis frames and
+    photos. The largest face's area and the number of people become interest.
+    On the real trip, the reel picks up the selfies and people moments CLIP
+    missed: good labelled moments picked went from 3/10 to 5/10, with 0
+    violations. `--no-faces` skips it. `CACHE_VERSION` is 10.
+  - Audio events (optional `audio` extra): an on-device AudioSet classifier
+    (AST) tags laughter, cheering and splash (interest bumps) and wind noise (a
+    mild gate). Speech is measured too, but off by default (weight 0): on the
+    real trip it only helped at full weight, by one moment. Its first run
+    downloads the model weights. `--no-audio-events` skips it.
+    `CACHE_VERSION` is 9.
 - **0.6.0** (2026-10-14): Motion and timing.
   - Slow motion: up to two of the reel's best cuts from clips shot at
     ≥ 100 fps play at half speed. They fill the same slot from half as much
