@@ -339,7 +339,9 @@ two clips.
 
 ### Later
 - [ ] Multi-camera: align two GoPros by GPS time and cut between angles
-- [ ] Other action cameras that write GPMF or similar telemetry
+- [ ] Footage from any source: phone videos (including `.MOV` and portrait),
+  other cameras, and photos. Telemetry becomes optional, with vision-based
+  shake detection when it's missing; GoPro extras are used when present
 
 ## Known limitations
 
@@ -373,6 +375,8 @@ two clips.
   and `<folder>/.butterfly/report/`. The reel stays at
   `<folder>/highlights.mp4`. An old `.reel_cache/` is ignored, not deleted.
 - Issue templates (bug report, roadmap item) and a pull request template.
+- Roadmap: footage from any source (phone videos, other cameras, photos),
+  replacing "other action cameras".
 - Removed HiLight tag support (the `hilight` interest part, its settings, and
   the report markers). Butterfly is fully automatic and shouldn't depend on
   a GoPro-only feature. `CACHE_VERSION` is now 4, so the first run
