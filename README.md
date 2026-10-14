@@ -209,6 +209,7 @@ butterfly/
 │   └── report.py            HTML report and timelines
 ├── tests/
 │   └── run_synthetic.py     synthetic regression suite
+├── docs/design/             design proposals for upcoming milestones
 ├── reel.py                  compatibility shim for `python reel.py …`
 ├── pyproject.toml
 └── README.md
@@ -287,7 +288,7 @@ two clips.
   so far is based on a single water-heavy trip.
 - Gate thresholds against real drops; that trip had none.
 - Close-up selfies: CLIP rates them barely above scenery, so they rarely make
-  the reel. Face detection (v0.5) is the planned fix.
+  the reel. Face detection (v0.7) is the planned fix.
 
 ## Roadmap
 
@@ -313,35 +314,51 @@ two clips.
 - [x] Issue and PR templates
 - [x] Rename the internal `.reel_cache` / `highlights_*` outputs to `.butterfly/`
 
-### v0.3 — real-footage validation
+### v0.3 — real-footage validation ✅
 - [x] Dry-run with real CLIP weights on a real trip; tune `GATES` and prompts
 - ~~Confirm the HERO13 HiLight layout with a tagged clip~~ Dropped: Butterfly
   is fully automatic, and HiLight support has been removed
-- [ ] A small labelled set of real clips (good / drop / handling) as a second test suite
+- The labelled real-footage set moved to v0.4, so it can cover more than GoPro
 
-### v0.4 — motion understanding
-- [ ] Optical flow to separate camera motion from subject motion
+### v0.4 — any video
+Design: [docs/design/any-footage.md](docs/design/any-footage.md)
+- [ ] Pick up `.MOV` / `.m4v` files and honour rotation metadata
+- [ ] Optical flow: a vision-based camera-shake gate for footage without
+  telemetry, and subject motion as interest
+- [ ] Portrait clips in a landscape reel: a blurred fill instead of black bars
+- [ ] A labelled set of real clips (good / unusable / dull) from a mixed
+  GoPro + phone folder, as a second test suite
+
+### v0.5 — photos
+Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v05)
+- [ ] Discover and analyse photos (JPEG, PNG, HEIC): quality, CLIP, EXIF time
+  and orientation, with a photos section in the report
+- [ ] Photos in the reel: one selection pool with video, a cap on the photo
+  share, gentle Ken Burns motion, a blurred fill for portrait shots, and
+  beat-aligned durations
+- [ ] Bursts and duplicates collapsed, photos of a moment already in a picked
+  video dropped, clocks aligned across devices, and Live Photos paired
+
+### v0.6 — motion and timing
 - [ ] Smart in/out points: shift cuts off shake and onto motion onsets
 - [ ] Slow motion for high-frame-rate clips (≥ 100 fps)
 
-### v0.5 — audio and people
+### v0.7 — audio and people
 - [ ] Audio event tagging (laughter, cheering, splash; wind as a gate)
 - [ ] Faces and people via Apple Vision, on-device
 
-### v0.6 — structure
+### v0.8 — structure
 - [ ] Shot segmentation from embedding change points, at most one pick per shot
 - [ ] Multi-day folders: one reel per day, or a trip reel with day titles
 
-### v0.7 — personalisation
+### v0.9 — personalisation
 - [ ] Thumbs up/down on picks in the HTML report, saved to a labels file
 - [ ] A learned ranker over window features, replacing hand-set weights
 - [ ] Trip presets (beach, snow, city, bike)
 
 ### Later
-- [ ] Multi-camera: align two GoPros by GPS time and cut between angles
-- [ ] Footage from any source: phone videos (including `.MOV` and portrait),
-  other cameras, and photos. Telemetry becomes optional, with vision-based
-  shake detection when it's missing; GoPro extras are used when present
+- [ ] Multi-camera: align two cameras by time or GPS and cut between angles
+- [ ] Vertical (9:16) reels
 
 ## Known limitations
 
@@ -377,6 +394,9 @@ two clips.
 - Issue templates (bug report, roadmap item) and a pull request template.
 - Roadmap: footage from any source (phone videos, other cameras, photos),
   replacing "other action cameras".
+- Roadmap reordered: v0.4 is now "any video" (`.MOV`, rotation, optical-flow
+  shake gate, portrait fill), and v0.5 is photos, with a design in
+  `docs/design/any-footage.md`. The later milestones move up by two.
 - Removed HiLight tag support (the `hilight` interest part, its settings, and
   the report markers). Butterfly is fully automatic and shouldn't depend on
   a GoPro-only feature. `CACHE_VERSION` is now 4, so the first run
