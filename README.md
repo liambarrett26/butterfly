@@ -184,6 +184,7 @@ faster than decoding 4K HEVC.
 | `--no-faces` | off | Skip face and people detection (Apple Vision, macOS) |
 | `--days` | off | Multi-day folders: `split` = one reel per day (`highlights_YYYY-MM-DD.mp4`); `titles` = one trip reel with a "Day N" title card opening each day |
 | `--tz` | — | The trip's UTC offset for `--days`, e.g. `-05:00` (default: each item's EXIF offset or GPS, else the folder's usual offset) |
+| `--preset` | — | Trip preset: `beach`, `snow`, `city` or `bike` (extra prompts, tuned weights and gates) |
 | `--ranker` | auto | Learned interest weights: `auto` (the folder's `ranker.json` if it beat the hand weights), `off`, or a `ranker.json` from another trip |
 | `--no-slowmo` | off | Never slow down high-frame-rate clips (by default the best 2 cuts from ≥ 100 fps clips play at half speed) |
 | `--clock-offset` | — | Correct a device's clock, e.g. `"iPhone 14 Plus=+01:00"` (repeatable; devices are listed in the report) |
@@ -192,6 +193,12 @@ faster than decoding 4K HEVC.
 | `--dry-run` | off | Analyse, plan and write the report without rendering |
 
 ## Tuning
+
+For a quick start on a particular kind of trip, use a preset:
+`--preset beach|snow|city|bike`. It adds CLIP prompts for that kind of trip and
+adjusts a few weights and gates (snow tolerates white, bright frames; bike
+tolerates bumpy riding; city values faces over speed and accepts darker
+streets). Presets are defined in `PRESETS`.
 
 Everything tunable lives in **`src/butterfly/config.py`**:
 
@@ -305,7 +312,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (77 / 77 checks
+Tested end-to-end on synthetic clips with injected telemetry (80 / 80 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -323,6 +330,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Trip presets | each preset sets its prompts / weights / gates; bike raises riding action; config restored | ✓ |
 | Learned ranker (labels against the hand weights) | learns the labelled preference, wins cross-validation, reorders interest; `auto` only when it wins | ✓ |
 | Report labelling | buttons on picks and photos; relabelling replaces; review server local-only and saves | ✓ |
 | Multi-day (2–3 synthetic days) | local day by time zone; titles open each day; length kept; per-day reels; photo-only days | ✓ |
@@ -416,7 +424,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 ### v0.9 — personalisation
 - [x] Thumbs up/down on picks in the HTML report, saved to a labels file
 - [x] A learned ranker over window features, replacing hand-set weights
-- [ ] Trip presets (beach, snow, city, bike)
+- [x] Trip presets (beach, snow, city, bike)
 
 ### Later
 - [ ] Multi-camera: align two cameras by time or GPS and cut between angles
@@ -440,6 +448,13 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Trip presets: `--preset beach|snow|city|bike` adds prompts for that kind of
+  trip and tunes weights and gates (`config.PRESETS`). On the mangrove trip,
+  `beach` kept the evaluation unchanged (6/10 good moments picked, 0
+  violations).
 
 ### Unreleased
 

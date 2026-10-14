@@ -657,6 +657,47 @@ def ranker_checks() -> dict:
     }
 
 
+def preset_checks(clips) -> dict:
+    """Each preset changes its settings; bike raises riding action; the config is restored afterwards."""
+    import copy
+
+    keep = {k: copy.deepcopy(getattr(C, k)) for k in ("POSITIVE_PROMPTS", "NEGATIVE_PROMPTS", "INTEREST_WEIGHTS", "GATES")}
+
+    def restore():
+        for k, v in keep.items():
+            obj = getattr(C, k)
+            obj.clear()
+            (obj.extend if isinstance(obj, list) else obj.update)(copy.deepcopy(v))
+
+    ok = True
+    try:
+        for name, p in C.PRESETS.items():
+            C.apply_preset(name)
+            ok &= all(x in C.POSITIVE_PROMPTS for x in p["prompts"])
+            ok &= all(C.INTEREST_WEIGHTS[k] == v for k, v in p["weights"].items())
+            ok &= all(C.GATES[k] == v for k, v in p["gates"].items())
+            restore()
+        try:
+            C.apply_preset("moon")
+            unknown = False
+        except ValueError:
+            unknown = True
+        c1 = clips[0]
+        compute(clips)
+        before = float(c1.parts["action"][60:140].mean())
+        C.apply_preset("bike")
+        compute(clips)
+        after = float(c1.parts["action"][60:140].mean())
+    finally:
+        restore()
+        compute(clips)
+    return {
+        "presets change their prompts, weights and gates": ok and unknown,
+        "bike preset raises riding action": after > before * 1.4 > 0,
+        "config restored after presets": C.INTEREST_WEIGHTS == keep["INTEREST_WEIGHTS"] and C.GATES == keep["GATES"],
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -697,6 +738,7 @@ def main() -> int:
         **shot_checks(),
         **day_checks(),
         **ranker_checks(),
+        **preset_checks(clips),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

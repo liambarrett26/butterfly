@@ -117,6 +117,7 @@ def main() -> None:
     ap.add_argument("--no-audio-events", action="store_true")
     ap.add_argument("--no-faces", action="store_true")
     ap.add_argument("--ranker", default="auto", metavar="auto|off|FILE")
+    ap.add_argument("--preset", choices=sorted(C.PRESETS))
     ap.add_argument("--clock-offset", action="append", default=[], metavar="DEVICE=±HH:MM")
     ap.add_argument("--strict", action="store_true", help="exit 1 if there are violations")
     args = ap.parse_args()
@@ -126,7 +127,10 @@ def main() -> None:
     if not labels_path.exists():
         sys.exit(f"No labels file at {labels_path} (format: docs/labels.md)")
     labels = load_labels(labels_path)
+    if args.preset:
+        C.apply_preset(args.preset)
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
+    tag += f"+preset-{args.preset}" if args.preset else ""
     tagger, suffix = load_tagger(not (args.no_vision or args.no_audio_events))
     people, psuffix = load_people(not (args.no_vision or args.no_faces))
     clips = analyse_folder(folder, find_videos(folder), scorer, tag + suffix + psuffix, args.refresh,

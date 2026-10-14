@@ -165,13 +165,17 @@ def main() -> None:
     ap.add_argument("folder", type=Path)
     ap.add_argument("--labels", type=Path, help="labels file (default <folder>/.butterfly/labels.json)")
     ap.add_argument("--no-clip", action="store_true")
+    ap.add_argument("--preset", choices=sorted(C.PRESETS))
     args = ap.parse_args()
+    if args.preset:
+        C.apply_preset(args.preset)
     folder = args.folder.expanduser()
     labels_path = (args.labels or folder / C.OUTPUT_DIR / "labels.json").expanduser()
     if not labels_path.exists():
         sys.exit(f"No labels at {labels_path}: label picks with butterfly-review first")
     labels = load_labels(labels_path)
     scorer, tag = load_scorer(False, args.no_clip, C.CLIP_MODEL, C.CLIP_PRETRAINED)
+    tag += f"+preset-{args.preset}" if args.preset else ""
     tagger, s1 = load_tagger(True)
     people, s2 = load_people(True)
     clips = analyse_folder(folder, find_videos(folder), scorer, tag + s1 + s2, False, True, find_photos(folder),
