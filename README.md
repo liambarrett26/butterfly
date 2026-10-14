@@ -14,7 +14,7 @@ are planned.
 Nothing is uploaded. There's no account, no cloud processing and no Wi-Fi
 offload. You copy the footage over USB-C or from a card reader, and run it.
 
-> **Status: early development (v0.4).** The pipeline runs end-to-end, passes
+> **Status: early development (v0.5).** The pipeline runs end-to-end, passes
 > its synthetic test suite, and has been tuned with CLIP on one real GoPro
 > trip. Phone video is supported, but not yet tested on real phone footage.
 > See [Project status](#project-status).
@@ -351,7 +351,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md)
   `butterfly-eval` to check against it ([format](docs/labels.md)). GoPro
   footage is labelled; phone footage is still to come
 
-### v0.5 — photos
+### v0.5 — photos ✅
 Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v05)
 - [x] Discover and analyse photos (JPEG, PNG, HEIC): quality, CLIP, EXIF time
   and orientation, with a photos section in the report
@@ -401,28 +401,24 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 
 ## Changelog
 
-### Unreleased
-
-- Photo bursts (shots ≤ 3 s apart that look the same) collapse to the best
-  one. A photo of a moment a picked video already shows is dropped (with
-  CLIP). An iPhone Live Photo's short `.MOV` stays with its photo instead of
-  becoming a clip. Every item records its device. The report lists devices
-  with their time spans, and `--clock-offset "DEVICE=±HH:MM"` fixes a
-  device's clock. A video without a creation time now falls back to its file
-  date in UTC, as everything else is. `CACHE_VERSION` is 8.
-- Photos are in the reel. They compete with video windows in one selection
-  pool, take at most a quarter of the cuts (`MAX_PHOTO_SHARE`), never when
-  gated, and are placed in time order among the clips. Each photo fills one
-  cut slot with a gentle Ken Burns zoom (`PHOTO_ZOOM`, direction alternating),
-  and a blurred fill if it isn't 16:9. New option `--photos auto|off|only`.
-- Photos (`.jpg .jpeg .png .heic .heif`) in the folder are analysed: EXIF
-  orientation, capture time (EXIF time and offset, then a timestamp in the
-  file name, then the file date), quality (blur against the folder's other
-  photos, exposure, CLIP "unusable") and CLIP interest. The report gets a
-  Photos section, best first, with gated photos faded. HEIC needs the new `photos` extra (`pillow-heif`), and Pillow is a
-  core dependency again. The cache key now includes the file extension, so
-  `CACHE_VERSION` is 7.
-
+- **0.5.0** (2026-10-14): Photos in the reel.
+  - Photos (`.jpg .jpeg .png .heic .heif`) in the folder are analysed: EXIF
+    orientation, capture time (EXIF time and offset, then a timestamp in the
+    file name, then the file date), quality (blur against the folder's other
+    photos, exposure, CLIP "unusable") and CLIP interest. The report has a
+    Photos section. HEIC needs the new `photos` extra (`pillow-heif`), and
+    Pillow is a core dependency again.
+  - Photos are in the reel. They compete with video windows in one selection
+    pool, take at most a quarter of the cuts (`MAX_PHOTO_SHARE`), never when
+    gated, and are placed in time order. Each photo fills one cut slot with a
+    gentle Ken Burns zoom, and a blurred fill if it isn't 16:9. New option
+    `--photos auto|off|only`.
+  - Photo bursts collapse to the best shot. A photo of a moment a picked
+    video already shows is dropped (with CLIP). An iPhone Live Photo's short
+    `.MOV` stays with its photo. The report lists devices with their time
+    spans, and `--clock-offset "DEVICE=±HH:MM"` fixes a device's clock.
+  - `CACHE_VERSION` is 8 (the cache key now includes the file extension), so
+    the first run re-analyses everything.
 - **0.4.0** (2026-10-14): Any video. Completes the v0.4 milestone; the
   `.MOV`/rotation support and optical-flow shake gate shipped in 0.3.0.
   - Portrait and other non-16:9 clips sit on a blurred, dimmed copy of
