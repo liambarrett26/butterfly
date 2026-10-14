@@ -42,6 +42,41 @@ def _bumps(n: int, centres: list[float], sigma: float) -> np.ndarray:
 
 
 def compute(clips: list[Clip]) -> None:
+    """Gates -> q, parts -> interest, score = interest × q. Videos and photos are normalised separately."""
+    _compute_videos([c for c in clips if c.kind == "video"])
+    _compute_photos([c for c in clips if c.kind == "photo"])
+
+
+def _compute_photos(photos: list[Clip]) -> None:
+    """A photo is one frame: blur (against the folder's photos), exposure and CLIP gates; semantic,
+    aesthetic and colour interest, normalised against photos only."""
+    if not photos:
+        return
+    P, W = C.PHOTO, C.INTEREST_WEIGHTS
+    norm = {k: _folder_norm(photos, k) for k in ("semantic", "aesthetic", "colour")}
+    mid = float(np.median([c.feats["sharpness"][0] for c in photos]))
+    for c in photos:
+        f, z = c.feats, np.zeros(1)
+        get = lambda k: norm[k].get(id(c), z) if norm[k] else z
+        gates = {
+            "blur": P["blur_floor"] + (1 - P["blur_floor"]) * _ramp(f["sharpness"] / (mid + 1e-9), P["blur_lo"], P["blur_hi"]),
+            "dark": G["dark_penalty"] + (1 - G["dark_penalty"]) * _ramp(f["luma"], G["dark_luma"] - 10, G["dark_luma"] + 10),
+            "blown": 1 - (1 - G["clipped_penalty"]) * _ramp(f["blown"], G["clipped_frac"], G["clipped_frac"] + 0.2),
+        }
+        if "clip_bad" in f:
+            gates["clip_bad"] = 1 - (1 - G["clip_bad_floor"]) * _ramp(f["clip_bad"], G["clip_bad_start"], G["clip_bad_full"])
+        q = np.ones(1)
+        for g in gates.values():
+            q = q * g
+        parts = {k: W[k] * get(k) for k in ("semantic", "aesthetic", "colour")}
+        c.gates, c.parts, c.q = gates, parts, q
+        c.interest = sum(parts.values()) + 0.05
+        c.score = c.interest * q
+
+
+def _compute_videos(clips: list[Clip]) -> None:
+    if not clips:
+        return
     norm = {k: _folder_norm(clips, k) for k in ("semantic", "aesthetic", "colour", "speed", "turn", "audio_peak", "shake")}
     norm["subject_motion"] = _folder_norm(clips, "subject_motion", steady=True)
 

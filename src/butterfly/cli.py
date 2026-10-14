@@ -18,6 +18,7 @@ from pathlib import Path
 
 from . import config as C
 from .analyse import analyse_clip
+from .photos import analyse_photo, assign_times, find_photos
 from .render import render
 from .report import write_report
 from .score import compute
@@ -44,9 +45,12 @@ def load_scorer(no_vision: bool, no_clip: bool, model: str, pretrained: str):
     return None, "cv"
 
 
-def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: bool, vision: bool) -> list:
-    """Analyse (or load cached) clips, printing one line each; -> clips ≥ 1 s, in shooting order."""
-    print(f"Analysing {len(files)} clip(s) in {folder} ...")
+def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: bool, vision: bool,
+                   photos: list[Path] = ()) -> list:
+    """Analyse (or load cached) videos and photos, printing one line per video;
+    -> videos ≥ 1 s and photos, in shooting order. Photos need vision, so --no-vision skips them."""
+    print(f"Analysing {len(files)} clip(s)" + (f" and {len(photos)} photo(s)" if photos and vision else "")
+          + f" in {folder} ...")
     clips = []
     for i, f in enumerate(files, 1):
         t0 = time.time()
@@ -58,6 +62,18 @@ def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: b
         extra += c.notes
         print(f"  [{i}/{len(files)}] {f.name} {c.duration:6.1f}s  {time.time() - t0:5.1f}s  "
               f"{'; '.join(extra)}")
+    stills, skipped = [], []
+    for f in (photos if vision else []):
+        try:
+            stills.append(analyse_photo(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh))
+        except Exception as e:  # unreadable file, or HEIC without the photos extra
+            skipped.append(f"{f.name} ({e})")
+    if stills:
+        assign_times(stills)
+        print(f"  {len(stills)} photo(s)")
+    for s in skipped[:5]:
+        print(f"  skipped photo {s}")
+    clips += stills
     clips.sort(key=lambda c: (c.created, c.path.name))
     return clips
 
@@ -89,14 +105,14 @@ def main() -> None:
             sys.exit(f"{tool} not found — install with `brew install ffmpeg`")
 
     folder = args.folder.expanduser()
-    files = find_videos(folder)
-    if not files:
-        sys.exit(f"No videos ({', '.join(C.VIDEO_EXTS)}) in {folder}")
+    files, photos = find_videos(folder), find_photos(folder)
+    if not files and not photos:
+        sys.exit(f"No videos ({', '.join(C.VIDEO_EXTS)}) or photos ({', '.join(C.PHOTO_EXTS)}) in {folder}")
     out = (args.out or folder / "highlights.mp4").expanduser()
     work = folder / C.OUTPUT_DIR  # cache/ and report/; an old .reel_cache/ is left alone
 
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
-    clips = analyse_folder(folder, files, scorer, tag, args.refresh, not args.no_vision)
+    clips = analyse_folder(folder, files, scorer, tag, args.refresh, not args.no_vision, photos)
     if not clips:
         sys.exit("Nothing to work with.")
 

@@ -19,6 +19,7 @@ from pathlib import Path
 
 from . import config as C
 from .cli import analyse_folder, find_videos, load_scorer
+from .photos import find_photos
 from .score import compute
 from .select_moments import plan_durations, select
 
@@ -38,52 +39,61 @@ def load_labels(path: Path) -> list[dict]:
 
 
 def evaluate(clips: list, picks: list, labels: list[dict]) -> dict:
-    """-> {'rows': {label: stats}, 'violations': [str], 'missing': [clip names]}."""
+    """-> {'rows': {label or 'label photos': stats}, 'violations': [str], 'missing': [names]}.
+
+    Video labels are weighted by seconds; photo labels count one item each and get their own rows.
+    """
     by_name = {c.path.name: c for c in clips}
-    acc = {k: {"items": 0, "seconds": 0.0, "q_sum": 0.0, "gated_s": 0.0, "picked_s": 0.0, "items_picked": 0}
-           for k in LABELS}
+    acc: dict[str, dict] = {}
     violations, missing = [], []
     for it in labels:
         c = by_name.get(it["clip"])
         if c is None:
             missing.append(it["clip"])
             continue
-        s, e = float(it.get("start", 0.0)), float(it.get("end", c.duration))
-        s, e = max(s, 0.0), min(e, c.duration)
-        lo, hi = int(s / C.DT), max(int(e / C.DT), int(s / C.DT) + 1)
-        q = c.q[lo:hi]
-        secs = (hi - lo) * C.DT
+        photo = c.kind == "photo"
+        if photo:
+            q, weight, s, e = c.q[:1], 1.0, 0.0, 0.0
+            picked = 1.0 if any(p.clip is c for p in picks) else 0.0
+            where = c.path.name
+        else:
+            s, e = max(float(it.get("start", 0.0)), 0.0), min(float(it.get("end", c.duration)), c.duration)
+            lo, hi = int(s / C.DT), max(int(e / C.DT), int(s / C.DT) + 1)
+            q, weight = c.q[lo:hi], (hi - lo) * C.DT
+            picked = sum(max(0.0, min(e, p.start + p.dur) - max(s, p.start)) for p in picks if p.clip is c)
+            where = f"{c.path.name} {s:.1f}–{e:.1f}s"
+        where += f" ({it['note']})" if it.get("note") else ""
         gated = float((q < C.GATES["window_min_q"]).mean()) if len(q) else 0.0
-        picked = sum(max(0.0, min(e, p.start + p.dur) - max(s, p.start)) for p in picks if p.clip is c)
-        a = acc[it["label"]]
+        key = it["label"] + (" photos" if photo else "")
+        a = acc.setdefault(key, {"photo": photo, "items": 0, "weight": 0.0, "q_sum": 0.0, "gated": 0.0,
+                                 "picked": 0.0, "items_picked": 0})
         a["items"] += 1
-        a["seconds"] += secs
-        a["q_sum"] += float(q.sum())
-        a["gated_s"] += gated * secs
-        a["picked_s"] += picked
-        a["items_picked"] += picked > 0.3
-        where = f"{c.path.name} {s:.1f}–{e:.1f}s" + (f" ({it['note']})" if it.get("note") else "")
-        if it["label"] == "unusable" and picked > 0.3:
-            violations.append(f"unusable but picked ({picked:.1f}s): {where}")
+        a["weight"] += weight
+        a["q_sum"] += float(q.mean()) * weight
+        a["gated"] += gated * weight
+        a["picked"] += picked
+        a["items_picked"] += picked > (0.5 if photo else 0.3)
+        if it["label"] == "unusable" and picked > (0.5 if photo else 0.3):
+            violations.append(f"unusable but picked: {where}")
         if it["label"] == "good" and gated > 0.5:
             violations.append(f"good but {100 * gated:.0f}% gated: {where}")
-    rows = {k: {"items": a["items"], "seconds": a["seconds"],
-                "mean_q": a["q_sum"] * C.DT / a["seconds"] if a["seconds"] else float("nan"),
-                "gated": a["gated_s"] / a["seconds"] if a["seconds"] else float("nan"),
-                "picked": a["picked_s"] / a["seconds"] if a["seconds"] else float("nan"),
-                "items_picked": a["items_picked"]}
-            for k, a in acc.items()}
+    order = [k + sfx for sfx in ("", " photos") for k in LABELS]
+    rows = {k: {"photo": acc[k]["photo"], "items": acc[k]["items"],
+                "seconds": 0.0 if acc[k]["photo"] else acc[k]["weight"],
+                "mean_q": acc[k]["q_sum"] / acc[k]["weight"], "gated": acc[k]["gated"] / acc[k]["weight"],
+                "picked": acc[k]["picked"] / acc[k]["weight"], "items_picked": acc[k]["items_picked"]}
+            for k in order if k in acc}
     return {"rows": rows, "violations": violations, "missing": sorted(set(missing))}
 
 
 def print_report(result: dict) -> None:
-    print(f"\n  {'label':<9} {'items':>5} {'seconds':>8} {'mean q':>7} {'gated':>6} {'picked':>7}  items picked")
+    print(f"\n  {'label':<15} {'items':>5} {'seconds':>8} {'mean q':>7} {'gated':>6} {'picked':>7}  items picked")
     for k, r in result["rows"].items():
-        if r["items"]:
-            print(f"  {k:<9} {r['items']:>5} {r['seconds']:>8.1f} {r['mean_q']:>7.2f} {100 * r['gated']:>5.0f}% "
-                  f"{100 * r['picked']:>6.0f}%  {r['items_picked']}/{r['items']}")
+        secs = "-" if r["photo"] else f"{r['seconds']:.1f}"
+        print(f"  {k:<15} {r['items']:>5} {secs:>8} {r['mean_q']:>7.2f} {100 * r['gated']:>5.0f}% "
+              f"{100 * r['picked']:>6.0f}%  {r['items_picked']}/{r['items']}")
     for m in result["missing"]:
-        print(f"  (no clip named {m} in the folder)")
+        print(f"  (no clip or photo named {m} in the folder)")
     print(f"\n  {len(result['violations'])} violation(s)")
     for v in result["violations"]:
         print(f"    - {v}")
@@ -111,7 +121,8 @@ def main() -> None:
         sys.exit(f"No labels file at {labels_path} (format: docs/labels.md)")
     labels = load_labels(labels_path)
     scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
-    clips = analyse_folder(folder, find_videos(folder), scorer, tag, args.refresh, not args.no_vision)
+    clips = analyse_folder(folder, find_videos(folder), scorer, tag, args.refresh, not args.no_vision,
+                           find_photos(folder))
     if not clips:
         sys.exit("Nothing to work with.")
     compute(clips)

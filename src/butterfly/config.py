@@ -1,8 +1,9 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 6        # bump to invalidate cached analyses
+CACHE_VERSION = 7        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
+PHOTO_EXTS = (".jpg", ".jpeg", ".png", ".heic", ".heif")  # photos picked up; HEIC needs the photos extra
 VIDEO_EXTS = (".mp4", ".mov", ".m4v")  # video files picked up (case-insensitive); GoPro .LRV are proxies, not clips
 
 # ---------------------------------------------------------------- vision
@@ -96,6 +97,17 @@ GATES = {
     "edge_s": 0.8,            # first/last seconds of each clip (button presses)
     "edge_penalty": 0.3,
     "window_min_q": 0.3,      # reject a candidate cut if any moment is below this
+}
+
+# ---------------------------------------------------------------- photos
+# Photos are scored like one video frame, but against other photos only: stills are sharper
+# and better composed than video frames.
+PHOTO = {
+    "width": 640,        # px; analysis width. Blur separates far better here than at VISION_WIDTH
+                         # (owner's examples: bad/good sharpness ratio ~7x at 640 px, ~2x at 320 px)
+    "blur_lo": 0.2,      # sharpness / median photo sharpness: at or below this, the blur gate is at its floor…
+    "blur_hi": 0.5,      # …at or above this, no blur penalty
+    "blur_floor": 0.1,   # blur gate for a clearly blurred photo (below window_min_q, so never used)
 }
 
 # ---------------------------------------------------------------- render
