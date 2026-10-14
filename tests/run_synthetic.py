@@ -440,6 +440,33 @@ def slowmo_checks() -> dict:
     }
 
 
+class FakeTagger:
+    """Stands in for the AST audio tagger: laughter at 15-17 s, wind noise at 2-6 s."""
+
+    def tag(self, path: Path, n: int) -> dict:
+        t = np.arange(n) * 0.1
+        z = np.zeros(n)
+        return {"ev_laughter": np.where((t >= 15) & (t < 17), 0.8, 0.0), "ev_wind": np.where((t >= 2) & (t < 6), 0.9, 0.0),
+                "ev_cheering": z, "ev_splash": z, "ev_speech": z}
+
+
+def audio_event_checks() -> dict:
+    c = analyse.analyse_clip(DATA / "GX010063.MP4", None, DATA / ".cache", "test+fake", refresh=True,
+                             vision=False, tagger=FakeTagger())
+    plain = analyse.analyse_clip(DATA / "GX010063.MP4", None, DATA / ".cache", "test", vision=False)
+    compute([c])
+    compute([plain])
+    laugh, wind = c.parts["laughter"], c.gates["wind"]
+    return {
+        "laughter raises interest where it happens": laugh[150:170].mean() > 0.5 and laugh[:140].max() == 0,
+        "wind noise gates mildly (never below ×0.7)": abs(wind[25:55].mean() - (1 - C.GATES["wind_penalty"])) < 0.01
+                                                       and wind.min() >= 1 - C.GATES["wind_penalty"] - 1e-9
+                                                       and wind[80:].min() == 1,
+        "no tagger: no audio-event features or wind gate": "wind" not in plain.gates
+                                                            and not any(k.startswith("ev_") for k in plain.feats),
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -475,6 +502,7 @@ def main() -> int:
         **dedupe_checks(),
         **inout_checks(),
         **slowmo_checks(),
+        **audio_event_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

@@ -94,6 +94,8 @@ with the camera hitting the sand doesn't make the reel.
 | Audio peaks | loudness above a 5 s rolling median | interest |
 | Water entry | wet-microphone transitions | interest bump |
 | Colourfulness | Hasler–Süsstrunk metric | small interest term |
+| Laughter, cheering, splash | AudioSet classifier (AST, optional `audio` extra) | interest bumps |
+| Wind noise | same classifier | mild gate (at most ×0.7) |
 | Photo blur | sharpness against the folder's median photo, at 640 px | gate (photos) |
 
 All signals are normalised **across the whole folder**, so a dull clip stays
@@ -122,7 +124,8 @@ python -m pip install -e ".[all]"
 
 This installs the `butterfly` command. The extras are optional:
 `.[vision]` adds the CLIP model (torch, open_clip), `.[music]` adds beat
-syncing (librosa), and `.[all]` adds both. Without `vision`, Butterfly runs
+syncing (librosa), `.[photos]` adds HEIC photos (pillow-heif), `.[audio]`
+adds audio event tagging (transformers), and `.[all]` adds all of them. Without `vision`, Butterfly runs
 with classic computer vision only. Dependencies are pinned to exact versions.
 
 A dedicated environment keeps Butterfly's dependencies apart from everything
@@ -175,6 +178,7 @@ faster than decoding 4K HEVC.
 | `--no-clip` | off | Classic CV only, no vision model |
 | `--no-vision` | off | Telemetry + audio only (fastest; no photos) |
 | `--photos` | auto | Photos in the reel: `auto` (up to a quarter of the cuts), `off`, or `only` (a photo reel) |
+| `--no-audio-events` | off | Skip laughter / cheering / splash / wind tagging (it needs the `audio` extra anyway) |
 | `--no-slowmo` | off | Never slow down high-frame-rate clips (by default the best 2 cuts from ≥ 100 fps clips play at half speed) |
 | `--clock-offset` | — | Correct a device's clock, e.g. `"iPhone 14 Plus=+01:00"` (repeatable; devices are listed in the report) |
 | `--clip-model` / `--clip-pretrained` | ViT-B-32 / laion2b | e.g. `MobileCLIP-S2` / `datacompdr` for speed |
@@ -274,7 +278,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (56 / 56 checks
+Tested end-to-end on synthetic clips with injected telemetry (59 / 59 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -292,6 +296,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Audio events (simulated tagger) | laughter raises interest there only; wind gates at most ×0.7 | ✓ |
 | Slow motion (120 fps clip) | half speed from half the source, slot length kept, 30 fps untouched | ✓ |
 | Smart in/out points | a cut moves off a quality dip, onto a motion onset, never overlapping | ✓ |
 | Bursts, Live Photos, clocks, duplicates | burst → best shot; Live Photo `.MOV` not a clip; offset applied; photo of a picked video moment dropped | ✓ |
@@ -369,7 +374,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Slow motion for high-frame-rate clips (≥ 100 fps)
 
 ### v0.7 — audio and people
-- [ ] Audio event tagging (laughter, cheering, splash; wind as a gate)
+- [x] Audio event tagging (laughter, cheering, splash; wind as a gate)
 - [ ] Faces and people via Apple Vision, on-device
 
 ### v0.8 — structure
@@ -403,6 +408,15 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Audio events (optional `audio` extra): an on-device AudioSet classifier
+  (AST) tags laughter, cheering and splash (interest bumps) and wind noise (a
+  mild gate). Speech is measured too, but off by default (weight 0): on the
+  real trip it only helped at full weight, by one moment. Its first run
+  downloads the model weights. `--no-audio-events` skips it.
+  `CACHE_VERSION` is 9.
 
 - **0.6.0** (2026-10-14): Motion and timing.
   - Slow motion: up to two of the reel's best cuts from clips shot at

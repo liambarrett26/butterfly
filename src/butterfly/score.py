@@ -122,6 +122,8 @@ def _compute_videos(clips: list[Clip]) -> None:
             gates["blown"] = 1 - (1 - G["clipped_penalty"]) * _ramp(f["blown"][:n], G["clipped_frac"], G["clipped_frac"] + 0.2)
         if "clip_bad" in f:
             gates["clip_bad"] = 1 - (1 - G["clip_bad_floor"]) * _ramp(f["clip_bad"][:n], G["clip_bad_start"], G["clip_bad_full"])
+        if "ev_wind" in f:
+            gates["wind"] = 1 - G["wind_penalty"] * _ramp(f["ev_wind"][:n], G["wind_lo"], G["wind_hi"])
         edge = np.ones(n)
         edge[(t < G["edge_s"]) | (t > c.duration - G["edge_s"])] = G["edge_penalty"]
         gates["edge"] = edge
@@ -139,6 +141,8 @@ def _compute_videos(clips: list[Clip]) -> None:
             "action": W["action"] * (get("speed") + 0.5 * get("turn")) * (1 - np.clip(shaky, 0, 1)),
             "subject": W["subject"] * get("subject_motion") * (1 - np.clip(shaky, 0, 1)),
             "audio": W["audio"] * get("audio_peak"),
+            **{e: W[e] * _ramp(f[f"ev_{e}"][:n], C.EVENT_LO, C.EVENT_HI)
+               for e in ("laughter", "cheering", "splash", "speech") if f"ev_{e}" in f},
             "water": W["water"] * _bumps(n, [w + 0.5 for w in c.events.get("water_entries", [])], 1.0),
         }
         interest = sum(parts.values()) + 0.05

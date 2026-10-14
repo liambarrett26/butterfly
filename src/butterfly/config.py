@@ -1,7 +1,7 @@
 """All tunable settings live here."""
 
 DT = 0.1                 # analysis timeline resolution (s)
-CACHE_VERSION = 8        # bump to invalidate cached analyses
+CACHE_VERSION = 9        # bump to invalidate cached analyses
 OUTPUT_DIR = ".butterfly"  # Butterfly's folder inside the footage folder: cache/ and report/
 PHOTO_EXTS = (".jpg", ".jpeg", ".png", ".heic", ".heif")  # photos picked up; HEIC needs the photos extra
 VIDEO_EXTS = (".mp4", ".mov", ".m4v")  # video files picked up (case-insensitive); GoPro .LRV are proxies, not clips
@@ -57,6 +57,19 @@ NEGATIVE_PROMPTS = [
 AESTHETIC_POS = "a beautiful, well composed award-winning travel photograph"
 AESTHETIC_NEG = "a boring, badly framed photo of nothing in particular"
 
+# ---------------------------------------------------------------- audio events (optional `audio` extra)
+AUDIO_TAG_MODEL = "MIT/ast-finetuned-audioset-10-10-0.4593"   # AudioSet classifier, on-device
+AUDIO_TAG_WIN_S = 2.0    # s of audio per classification…
+AUDIO_TAG_HOP_S = 1.0    # …every this many seconds
+AUDIO_EVENTS = {         # feature ev_<group> = max probability over these AudioSet classes
+    "laughter": ["Laughter", "Baby laughter", "Giggle", "Snicker", "Belly laugh", "Chuckle, chortle"],
+    "cheering": ["Cheering", "Applause", "Whoop"],
+    "splash": ["Splash, splatter"],
+    "wind": ["Wind", "Wind noise (microphone)"],
+    "speech": ["Speech"],
+}
+EVENT_LO, EVENT_HI = 0.1, 0.5   # event probability where interest starts / is full (absolute: events are rare)
+
 # ---------------------------------------------------------------- interest weights
 INTEREST_WEIGHTS = {
     "semantic": 1.0,     # CLIP similarity to POSITIVE_PROMPTS
@@ -64,6 +77,10 @@ INTEREST_WEIGHTS = {
     "action": 0.8,       # smooth speed + turns (never shake)
     "audio": 0.4,        # loudness peaks above rolling baseline
     "colour": 0.2,       # colourfulness
+    "laughter": 0.8,     # audio events (AudioSet probability ramped EVENT_LO..EVENT_HI), absolute bumps
+    "cheering": 0.8,
+    "splash": 0.6,
+    "speech": 0.0,       # measured, off: see the v0.7 PR for the evaluation
     # Subject motion (optical flow left after removing camera motion) is computed and cached, but
     # off: on real footage it mostly measures parallax, water and things fixed to the camera (a
     # boat's bow, legs), so it rewarded a boat ride over people floating. Revisit with v0.7 people detection.
@@ -80,6 +97,9 @@ GATES = {
     "shake_penalty": 0.85,    # max reduction from handling shake (0-1)
     "shake_ride_speed": 3.0,  # m/s; above this, shake is treated as a bumpy ride (softer)
     "shake_ride_factor": 0.4, # how much of the shake penalty still applies while riding
+    "wind_lo": 0.3,           # wind-noise probability where the (mild) wind gate starts…
+    "wind_hi": 0.7,           # …and is full
+    "wind_penalty": 0.3,      # max reduction: wind spoils the sound, not the picture
     "cam_shake_lo": 0.06,     # frame-widths/s of jittery camera motion in the image (optical flow)…
     "cam_shake_hi": 0.20,     # …where the vision shake penalty starts / is full. Used only without a gyro.
                               # Stabilised GoPro footage measured p95 0.05–0.10.
