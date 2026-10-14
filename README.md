@@ -273,7 +273,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (49 / 49 checks
+Tested end-to-end on synthetic clips with injected telemetry (52 / 52 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -291,6 +291,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Smart in/out points | a cut moves off a quality dip, onto a motion onset, never overlapping | ✓ |
 | Bursts, Live Photos, clocks, duplicates | burst → best shot; Live Photo `.MOV` not a clip; offset applied; photo of a picked video moment dropped | ✓ |
 
 HERO13 GPMF decoding (all 20 streams, including GPS9) was verified on real
@@ -362,7 +363,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   video dropped, clocks aligned across devices, and Live Photos paired
 
 ### v0.6 — motion and timing
-- [ ] Smart in/out points: shift cuts off shake and onto motion onsets
+- [x] Smart in/out points: shift cuts off shake and onto motion onsets
 - [ ] Slow motion for high-frame-rate clips (≥ 100 fps)
 
 ### v0.7 — audio and people
@@ -400,6 +401,14 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Smart in/out points: once a cut's length is final, it may move up to
+  ±0.5 s, first to raise its lowest quality, then to start where activity
+  rises (frame change, else loudness). It never overlaps another cut of the
+  same clip. On the real GoPro folder, 5 of 12 cuts moved, and the worst
+  cut's 5th-percentile quality rose from 0.64 to 0.74.
 
 - **0.5.0** (2026-10-14): Photos in the reel.
   - Photos (`.jpg .jpeg .png .heic .heif`) in the folder are analysed: EXIF

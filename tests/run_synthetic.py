@@ -381,6 +381,34 @@ def dedupe_checks() -> dict:
     }
 
 
+def inout_checks() -> dict:
+    """Smart in/out points on a hand-built clip: dodge a quality dip, start on an onset, never overlap."""
+    from datetime import datetime
+
+    from butterfly.analyse import Clip
+    from butterfly.select_moments import refine
+
+    c = Clip(Path("inout.mp4"), 12.0, datetime(2026, 1, 1), True, 30.0)
+    c.q = np.ones(c.n)
+    c.q[30:33] = 0.35                               # brief dip at 3.0-3.3 s (still above window_min_q)
+    change = np.full(c.n, 1.0)
+    change[60:] = 6.0                               # activity steps up at 6.0 s
+    c.feats = {"change": change}
+    dip, onset = Pick(c, 3.0, 2.0, 1.0, ""), Pick(c, 5.7, 2.0, 1.0, "")
+    refine([dip, onset])
+    a, b = Pick(c, 1.0, 2.0, 1.0, ""), Pick(c, 3.0, 2.0, 1.0, "")   # adjacent: a would like to move right
+    c2 = Clip(Path("inout2.mp4"), 12.0, datetime(2026, 1, 1), True, 30.0)
+    c2.q, c2.feats = np.ones(c2.n), {"change": np.ones(c2.n)}
+    c2.q[10:13] = 0.35
+    a.clip = b.clip = c2
+    refine([a, b])
+    return {
+        "in/out: a cut moves off a quality dip at its start": 3.3 - 1e-6 <= dip.start <= 3.5 + 1e-6,
+        "in/out: on flat quality a cut starts on a motion onset": abs(onset.start - 6.0) < 0.11,
+        "in/out: cuts of one clip never overlap": a.start + a.dur <= b.start + 1e-6,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -414,6 +442,7 @@ def main() -> int:
         **photo_results,
         **photo_reel_checks(clips, photo_items),
         **dedupe_checks(),
+        **inout_checks(),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),

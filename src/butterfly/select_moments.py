@@ -113,6 +113,57 @@ def moment(p: Pick) -> datetime:
     return p.clip.created + timedelta(seconds=p.start)
 
 
+def onset_strength(c: Clip) -> np.ndarray:
+    """Per DT step: how much activity rises over the next ONSET_WINDOW_S versus the previous one,
+    scaled so the clip's 95th percentile is 1. Activity is frame change, else audio loudness."""
+    key = "change" if "change" in c.feats else "loudness" if "loudness" in c.feats else None
+    if key is None:
+        return np.zeros(c.n)
+    a = np.asarray(c.feats[key][:c.n], float)
+    k = max(int(round(C.ONSET_WINDOW_S / C.DT)), 1)
+    cs = np.concatenate([[0.0], np.cumsum(a)])
+    i = np.arange(len(a))
+    hi, lo = np.minimum(i + k, len(a)), np.maximum(i - k, 0)
+    after = (cs[hi] - cs[i]) / np.maximum(hi - i, 1)
+    before = (cs[i] - cs[lo]) / np.maximum(i - lo, 1)
+    rise = np.clip(after - before, 0, None)
+    return rise / (np.percentile(rise, 95) + 1e-9)
+
+
+def refine(picks: list[Pick]) -> None:
+    """Smart in/out points: move each video cut by up to ±INOUT_SHIFT_S to raise its minimum q,
+    then to start on a motion onset; ties keep the smallest move. Cuts stay inside their clip,
+    never overlap another cut of the same clip, and never end up below window_min_q or their old q
+    (5th percentile, as in window rejection)."""
+    steps = int(round(C.INOUT_SHIFT_S / C.DT))
+    onsets: dict[int, np.ndarray] = {}
+    for p in picks:
+        c = p.clip
+        if c.kind != "video" or p.dur >= c.duration - 1e-6:
+            continue
+        on = onsets.setdefault(id(c), onset_strength(c))
+        others = [(o.start, o.start + o.dur) for o in picks if o is not p and o.clip is c]
+
+        def qwin(s: float) -> np.ndarray:
+            lo = int(round(s / C.DT))
+            return c.q[lo:max(int(round((s + p.dur) / C.DT)), lo + 1)]
+
+        floor = min(float(np.percentile(qwin(p.start), 5)), C.GATES["window_min_q"])
+        best_key, best_s = None, p.start
+        for k in range(-steps, steps + 1):
+            s = round(p.start + k * C.DT, 6)
+            if s < 0 or s + p.dur > c.duration + 1e-6 or any(s < e and s + p.dur > b for b, e in others):
+                continue
+            q = qwin(s)
+            if float(np.percentile(q, 5)) < floor:
+                continue
+            onset = float(on[min(int(round(s / C.DT)), len(on) - 1)])
+            key = (round(float(q.min()) / C.INOUT_Q_STEP), int(onset / C.ONSET_STEP), -abs(k))
+            if best_key is None or key > best_key:
+                best_key, best_s = key, s
+        p.start = best_s
+
+
 def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVERSITY,
            photos: str = "auto") -> list[Pick]:
     """MMR over video windows and photos in one pool -> picks in time order, with planned durations.
@@ -173,4 +224,5 @@ def select(clips: list[Clip], durations: list[float], diversity: float = C.DIVER
         centre = p.start + p.dur / 2
         p.dur = min(d, p.clip.duration)
         p.start = float(np.clip(centre - p.dur / 2, 0, p.clip.duration - p.dur))
+    refine(chosen)
     return chosen
