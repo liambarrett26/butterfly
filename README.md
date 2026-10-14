@@ -210,6 +210,16 @@ The HTML report shows a thumbnail and a "why" for every pick, plus a timeline
 per clip with score, quality and drops. It's the main tool for
 seeing what to change.
 
+To teach Butterfly what you like, label picks and photos in the report:
+
+```bash
+butterfly-review ~/Movies/GoPro   # opens the report; 👍 good / 👎 dull / 🚫 unusable save to .butterfly/labels.json
+```
+
+It serves the report on `127.0.0.1` (this computer only). Opened as a plain
+file, the report keeps your clicks in the browser and offers a download of
+`labels.json` instead. The labels feed `butterfly-eval`.
+
 ## Repository layout
 
 ```
@@ -283,7 +293,7 @@ done. Fixes and tuning in between are patch releases.
 
 ### Verified
 
-Tested end-to-end on synthetic clips with injected telemetry (70 / 70 checks
+Tested end-to-end on synthetic clips with injected telemetry (73 / 73 checks
 passing, also in CI):
 
 | Situation | Expected | Result |
@@ -301,6 +311,7 @@ passing, also in CI):
 | Portrait clip in the reel | 1920×1080, blurred fill at the sides, no black bars | ✓ |
 | Photos: sharp / blurred / dark / EXIF-rotated / name-dated | usable / gated / penalised / portrait / UTC time | ✓ |
 | Photos in the reel | ≤ 25% of cuts, gated never picked, time order, zoom + fill, `--photos only/off` | ✓ |
+| Report labelling | buttons on picks and photos; relabelling replaces; review server local-only and saves | ✓ |
 | Multi-day (2–3 synthetic days) | local day by time zone; titles open each day; length kept; per-day reels; photo-only days | ✓ |
 | Shots (scene change at 10 s) | two shots; one pick per shot; relaxed to fill the reel | ✓ |
 | Faces (simulated detector) | a face in view raises interest there only | ✓ |
@@ -390,7 +401,7 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
 - [x] Multi-day folders: one reel per day, or a trip reel with day titles
 
 ### v0.9 — personalisation
-- [ ] Thumbs up/down on picks in the HTML report, saved to a labels file
+- [x] Thumbs up/down on picks in the HTML report, saved to a labels file
 - [ ] A learned ranker over window features, replacing hand-set weights
 - [ ] Trip presets (beach, snow, city, bike)
 
@@ -416,6 +427,14 @@ Design: [docs/design/any-footage.md](docs/design/any-footage.md#part-2-photos-v0
   and mislabels camera temperature. Butterfly works around both.
 
 ## Changelog
+
+### Unreleased
+
+- Label from the report: every pick and photo has 👍 good / 👎 dull /
+  🚫 unusable buttons. `butterfly-review FOLDER` serves the report on
+  127.0.0.1 and saves clicks straight into `.butterfly/labels.json` (the
+  `butterfly-eval` format). Opened as a file, the report collects them in the
+  browser for download.
 
 - **0.8.0** (2026-10-14): Structure.
   - Multi-day folders: `--days split` makes one reel per day; `--days titles`

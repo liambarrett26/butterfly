@@ -578,6 +578,46 @@ def day_checks() -> dict:
     }
 
 
+def review_checks() -> dict:
+    """Report buttons, label upserts, and the local review server (run after cli_outputs)."""
+    import threading
+    import urllib.request
+
+    from butterfly.review import serve, upsert_label
+
+    page = (DATA / ".butterfly" / "report" / "index.html").read_text()
+    lab = DATA / ".butterfly" / "labels.json"
+    lab.unlink(missing_ok=True)
+    upsert_label(lab, {"clip": "GX010061.MP4", "start": 6.0, "end": 8.5, "label": "good"})
+    data = upsert_label(lab, {"clip": "GX010061.MP4", "start": 6.1, "end": 8.4, "label": "dull"})   # same cut
+    try:
+        upsert_label(lab, {"clip": "GX010061.MP4", "label": "great"})
+        rejected = False
+    except ValueError:
+        rejected = True
+
+    server = serve(DATA)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        index_ok = urllib.request.urlopen(base + "/index.html", timeout=5).status == 200
+        req = urllib.request.Request(base + "/api/label", method="POST", headers={"Content-Type": "application/json"},
+                                     data=json.dumps({"clip": "GX010062.MP4", "label": "unusable"}).encode())
+        posted = json.loads(urllib.request.urlopen(req, timeout=5).read())["ok"]
+        served = json.loads(urllib.request.urlopen(base + "/api/labels", timeout=5).read())["labels"]
+    finally:
+        server.shutdown()
+        server.server_close()
+    return {
+        "report has label buttons for picks and photos": page.count('class="lab"') >= 5 and "data-clip=" in page
+                                                         and "/api/label" in page,
+        "labels: the same cut is relabelled, not duplicated": len(data["labels"]) == 1
+                                                              and data["labels"][0]["label"] == "dull" and rejected,
+        "review server: local only, serves the report, saves labels": server.server_address[0] == "127.0.0.1"
+            and index_ok and posted and {"clip": "GX010062.MP4", "label": "unusable"} in served,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -620,6 +660,7 @@ def main() -> int:
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),
+        **review_checks(),
     }
     for name, ok in checks.items():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
