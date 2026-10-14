@@ -31,6 +31,37 @@ def find_videos(folder: Path) -> list[Path]:
                   and not p.name.startswith(("._", "highlights")))
 
 
+def load_scorer(no_vision: bool, no_clip: bool, model: str, pretrained: str):
+    """-> (ClipScorer or None, cache tag). Falls back to classic CV if CLIP can't load."""
+    if no_vision:
+        return None, "novis"
+    if not no_clip:
+        try:
+            from .vision import ClipScorer
+            return ClipScorer(model, pretrained), f"{model}-{pretrained}".replace("/", "_")
+        except Exception as e:  # missing torch/open_clip or no weights
+            print(f"  CLIP unavailable ({type(e).__name__}: {e}) — continuing with classic CV only")
+    return None, "cv"
+
+
+def analyse_folder(folder: Path, files: list[Path], scorer, tag: str, refresh: bool, vision: bool) -> list:
+    """Analyse (or load cached) clips, printing one line each; -> clips ≥ 1 s, in shooting order."""
+    print(f"Analysing {len(files)} clip(s) in {folder} ...")
+    clips = []
+    for i, f in enumerate(files, 1):
+        t0 = time.time()
+        c = analyse_clip(f, scorer, folder / C.OUTPUT_DIR / "cache", tag, refresh, vision=vision)
+        if c.duration < 1.0:
+            continue
+        clips.append(c)
+        extra = [f"{len(c.events['drops'])} drop(s)"] if c.events.get("drops") else []
+        extra += c.notes
+        print(f"  [{i}/{len(files)}] {f.name} {c.duration:6.1f}s  {time.time() - t0:5.1f}s  "
+              f"{'; '.join(extra)}")
+    clips.sort(key=lambda c: (c.created, c.path.name))
+    return clips
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="butterfly", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -64,37 +95,10 @@ def main() -> None:
     out = (args.out or folder / "highlights.mp4").expanduser()
     work = folder / C.OUTPUT_DIR  # cache/ and report/; an old .reel_cache/ is left alone
 
-    # ---------------------------------------------------------------- vision model
-    scorer, tag = None, "cv"
-    if args.no_vision:
-        tag = "novis"
-    elif not args.no_clip:
-        try:
-            from .vision import ClipScorer
-            scorer = ClipScorer(args.clip_model, args.clip_pretrained)
-            tag = f"{args.clip_model}-{args.clip_pretrained}".replace("/", "_")
-        except Exception as e:  # missing torch/open_clip or no weights
-            print(f"  CLIP unavailable ({type(e).__name__}: {e}) — continuing with classic CV only")
-
-    # ---------------------------------------------------------------- analysis
-    print(f"Analysing {len(files)} clip(s) in {folder} ...")
-    clips = []
-    for i, f in enumerate(files, 1):
-        t0 = time.time()
-        c = analyse_clip(f, scorer, work / "cache", tag, args.refresh, vision=not args.no_vision)
-        if c.duration < 1.0:
-            continue
-        clips.append(c)
-        sig = ", ".join(sorted(k for k in c.feats)) or "none"
-        extra = []
-        if c.events.get("drops"):
-            extra.append(f"{len(c.events['drops'])} drop(s)")
-        extra += c.notes
-        print(f"  [{i}/{len(files)}] {f.name} {c.duration:6.1f}s  {time.time() - t0:5.1f}s  "
-              f"{'; '.join(extra)}")
+    scorer, tag = load_scorer(args.no_vision, args.no_clip, args.clip_model, args.clip_pretrained)
+    clips = analyse_folder(folder, files, scorer, tag, args.refresh, not args.no_vision)
     if not clips:
         sys.exit("Nothing to work with.")
-    clips.sort(key=lambda c: (c.created, c.path.name))
 
     # ---------------------------------------------------------------- score + select
     compute(clips)

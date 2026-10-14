@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,7 @@ sys.path.insert(0, str(ROOT / "src"))  # works with or without `pip install -e .
 from butterfly import analyse  # noqa: E402
 from butterfly import cli  # noqa: E402
 from butterfly import config as C  # noqa: E402
+from butterfly.evaluate import evaluate, load_labels  # noqa: E402
 from butterfly import vision  # noqa: E402
 from butterfly.score import compute  # noqa: E402
 from butterfly.render import fit_graph, render  # noqa: E402
@@ -179,6 +181,36 @@ def render_fill() -> dict:
     }
 
 
+def label_checks(clips, picks) -> dict:
+    """The labels format round-trips, and evaluation agrees with what the gates should do."""
+    path = DATA / "_labels.json"
+    path.write_text(json.dumps({"version": 1, "labels": [
+        {"clip": "GX010061.MP4", "start": 6, "end": 14, "label": "good", "note": "smooth riding"},
+        {"clip": "GX010061.MP4", "start": 23.5, "end": 26, "label": "unusable", "note": "drop"},
+        {"clip": "GX010062.MP4", "start": 2.5, "end": 7.5, "label": "unusable", "note": "handling"},
+        {"clip": "GX010062.MP4", "start": 21, "end": 29, "label": "dull", "note": "dark"},
+        {"clip": "GX010063.MP4", "label": "dull"},
+    ]}))
+    labels = load_labels(path)
+    path.unlink()
+    r = evaluate(clips, picks, labels)
+    try:
+        rejected = False
+        bad = DATA / "_bad_labels.json"
+        bad.write_text(json.dumps([{"clip": "x.MP4", "label": "great"}]))
+        load_labels(bad)
+    except ValueError:
+        rejected = True
+    finally:
+        bad.unlink()
+    return {
+        "labels: no violations on the synthetic set": not r["violations"] and not r["missing"],
+        "labels: unusable ranges fully gated, never picked": r["rows"]["unusable"]["gated"] > 0.9
+                                                             and r["rows"]["unusable"]["picked"] == 0,
+        "labels: invalid label rejected": rejected,
+    }
+
+
 def main() -> int:
     make_clips()
     analyse.load_telemetry = fake_telemetry
@@ -207,6 +239,7 @@ def main() -> int:
         f"no clip takes more than {cap} cuts": all(sum(p.clip is c for p in picks) <= cap for c in clips),
         ".MOV videos are picked up": any(p.name == "IMG_0001.MOV" for p in cli.find_videos(DATA)),
         "rotated clip analysed as portrait": rotated_portrait(),
+        **label_checks(clips, picks),
         **flow_checks(),
         **render_fill(),
         **cli_outputs(),
